@@ -1,0 +1,249 @@
+
+'use client'
+
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Users, MessageCircle, Shield, Vote, CheckCircle, Heart } from 'lucide-react'
+import Link from 'next/link'
+import { motion } from 'framer-motion'
+import Script from 'next/script'
+
+export default function LandingPage() {
+  const structuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'Bridging the Aisle',
+    description: 'A social media platform dedicated to civil and fact-based political discussions',
+    url: process.env.NEXT_PUBLIC_APP_URL || 'https://bridgingtheaisle.com',
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: {
+        '@type': 'EntryPoint',
+        urlTemplate: `${process.env.NEXT_PUBLIC_APP_URL || 'https://bridgingtheaisle.com'}/search?q={search_term_string}`,
+      },
+      'query-input': 'required name=search_term_string',
+    },
+    author: {
+      '@type': 'Organization',
+      name: 'Bridging the Aisle',
+    },
+  }
+
+  const organizationData = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'Bridging the Aisle',
+    description: 'A social media platform for civil political discussion',
+    url: process.env.NEXT_PUBLIC_APP_URL || 'https://thefulcrum.us/media-library/image.png?id=32837189&width=2000&height=1500&coordinates=200%2C0%2C200%2C0',
+    logo: `${process.env.NEXT_PUBLIC_APP_URL || 'https://pbcdn1.podbean.com/imglogo/image-logo/11089254/OR360_Logo_Apple_kq7asm.png
+    sameAs: [
+      // Add your social media profiles here when available
+      // 'https://twitter.com/BridgingAisle',
+      // 'https://facebook.com/BridgingAisle',
+      // 'https://linkedin.com/company/bridging-the-aisle'
+    ],
+  }
+
+  const webApplicationData = {
+    '@context': 'https://schema.org',
+    '@type': 'WebApplication',
+    name: 'Bridging the Aisle',
+    description: 'Join a community dedicated to respectful, fact-based political discourse',
+    url: process.env.NEXT_PUBLIC_APP_URL || 'https://bridgingtheaisle.com',
+    applicationCategory: 'SocialNetworkingApplication',
+    operatingSystem: 'Web',
+    offers: {
+      '@type': 'Offer',
+      price: '0',
+      priceCurrency: 'USD',
+    },
+    featureList: [
+      'Civil political discourse',
+      'Fact-checked content',
+      'Topic-based groups',
+      'Political spectrum filtering',
+      'Community moderation',
+      'Meaningful reactions',
+    ],
+  }
+
+  const features = [
+    {
+      icon: <MessageCircle className="h-6 w-6" />,
+      title: "Civil Discourse",
+      description: "Engage in respectful political discussions with built-in civility scoring"
+    },
+    {
+      icon: <Shield className="h-6 w-6" />,
+      title: "Fact-Checked Content",
+      description: "Source citations and fact-checking tools to ensure accurate information"
+    },
+    {
+      icon: <Users className="h-6 w-6" />,
+      title: "Topic-Based Groups",
+      description: "Join communities focused on specific political topics and issues"
+    },
+    {
+      icon: <Vote className="h-6 w-6" />,
+      title: "Political Spectrum",
+      description: "Filter content by political leanings and find diverse perspectives"
+    },
+    {
+      icon: <CheckCircle className="h-6 w-6" />,
+      title: "Moderation Tools",
+      description: "Community-driven moderation with clear guidelines and enforcement"
+    },
+    {
+      icon: <Heart className="h-6 w-6" />,
+      title: "Meaningful Reactions",
+      description: "React with 'Agree', 'Disagree', 'Insightful' and 'Respectful'"
+    }
+  ]
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-creamy-tan-50 to-creamy-tan-200">
+      {/* Hero Section */}
+      <div className="relative overflow-hidden">
+        <div className="max-w-7xl mx-auto">
+          <div className="relative z-10 pb-8 sm:pb-16 md:pb-20 lg:max-w-2xl lg:w-full lg:pb-28 xl:pb-32">
+            <main className="mt-10 mx-auto max-w-7xl px-4 sm:mt-12 sm:px-6 md:mt-16 lg:mt-20 lg:px-8 xl:mt-28">
+              <div className="sm:text-center lg:text-left">
+                <motion.h1 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.8 }}
+                  className="text-4xl tracking-tight font-extrabold text-earth-brown-900 sm:text-5xl md:text-6xl"
+                >
+                  <span className="block xl:inline">Civil Political</span>{' '}
+                  <span className="block text-turquoise-600 xl:inline">Discussion Platform</span>
+                </motion.h1>
+                <motion.p 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.8, delay: 0.2 }}
+                  className="mt-3 text-base text-earth-brown-700 sm:mt-5 sm:text-lg sm:max-w-xl sm:mx-auto md:mt-5 md:text-xl lg:mx-0"
+                >
+                  Join a community dedicated to respectful, fact-based political discourse. Connect with others across the political spectrum in meaningful conversations.
+                </motion.p>
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.8, delay: 0.4 }}
+                  className="mt-5 sm:mt-8 sm:flex sm:justify-center lg:justify-start"
+                >
+                  <div className="rounded-md shadow">
+                    <Link href="/auth/signup">
+                      <Button size="lg" className="w-full bg-turquoise-600 hover:bg-turquoise-700 text-white">
+                        Join the Discussion
+                      </Button>
+                    </Link>
+                  </div>
+                  <div className="mt-3 sm:mt-0 sm:ml-3">
+                    <Link href="/auth/signin">
+                      <Button size="lg" variant="outline" className="w-full border-earth-brown-300 text-earth-brown-700 hover:bg-creamy-tan-100">
+                        Sign In
+                      </Button>
+                    </Link>
+                  </div>
+                </motion.div>
+              </div>
+            </main>
+          </div>
+        </div>
+      </div>
+
+      {/* Features Section */}
+      <div className="py-12 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="lg:text-center">
+            <h2 className="text-base text-turquoise-600 font-semibold tracking-wide uppercase">Features</h2>
+            <p className="mt-2 text-3xl leading-8 font-extrabold tracking-tight text-earth-brown-900 sm:text-4xl">
+              Built for meaningful political dialogue
+            </p>
+            <p className="mt-4 max-w-2xl text-xl text-earth-brown-600 lg:mx-auto">
+              Our platform promotes constructive political discussions through innovative features designed to encourage civility and fact-based conversations.
+            </p>
+          </div>
+
+          <div className="mt-10">
+            <dl className="space-y-10 md:space-y-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-x-8 md:gap-y-10">
+              {features.map((feature, index) => (
+                <motion.div
+                  key={feature.title}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: index * 0.1 }}
+                >
+                  <Card className="hover:shadow-lg transition-shadow duration-300 border-creamy-tan-200">
+                    <CardHeader>
+                      <div className="flex items-center space-x-3">
+                        <div className="p-2 bg-turquoise-100 rounded-lg text-turquoise-600">
+                          {feature.icon}
+                        </div>
+                        <CardTitle className="text-lg text-earth-brown-800">{feature.title}</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <CardDescription className="text-earth-brown-600">
+                        {feature.description}
+                      </CardDescription>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </dl>
+          </div>
+        </div>
+      </div>
+
+      {/* Community Guidelines Section */}
+      <div className="bg-pale-copper-50 py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="lg:text-center">
+            <h2 className="text-base text-pale-copper-600 font-semibold tracking-wide uppercase">Community Standards</h2>
+            <p className="mt-2 text-3xl leading-8 font-extrabold tracking-tight text-earth-brown-900 sm:text-4xl">
+              Our commitment to civility
+            </p>
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card className="border-creamy-tan-200">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center text-earth-brown-800">
+                    <CheckCircle className="h-5 w-5 mr-2 text-turquoise-600" />
+                    Respect Others
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-earth-brown-600">Treat all members with dignity regardless of political beliefs</p>
+                </CardContent>
+              </Card>
+              
+              <Card className="border-creamy-tan-200">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center text-earth-brown-800">
+                    <CheckCircle className="h-5 w-5 mr-2 text-turquoise-600" />
+                    Cite Sources
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-earth-brown-600">Back up claims with credible sources and evidence</p>
+                </CardContent>
+              </Card>
+              
+              <Card className="border-creamy-tan-200">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center text-earth-brown-800">
+                    <CheckCircle className="h-5 w-5 mr-2 text-turquoise-600" />
+                    Stay On Topic
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-earth-brown-600">Keep discussions focused and constructive</p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,997 @@
+
+import { NextRequest, NextResponse } from 'next/server';
+import { BskyAgent, AppBskyFeedDefs } from '@atproto/api';
+import { prisma } from '@/lib/db';
+import { moderateContent } from '@/lib/content-moderation';
+
+// Session cache to avoid re-authenticating on every request
+let cachedAgent: BskyAgent | null = null;
+let cacheExpiry: number = 0;
+const SESSION_LIFETIME = 60 * 60 * 1000; // 1 hour in milliseconds
+
+// Feed configuration
+const FEED_NAME = 'civic-timeline';
+const FEED_FETCH_LIMIT = 50; // Fetch more posts at once for efficiency
+const FEED_URI = 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot'; // Bluesky "What's Hot" feed
+
+// STRICT Political/Civic keywords - posts MUST contain at least one
+const CIVIC_KEYWORDS = [
+  // Core Political Terms
+  'politics', 'political', 'policy', 'policies', 'legislation', 'legislative',
+  'government', 'governance', 'federal', 'state policy', 'local policy',
+  'public policy', 'bipartisan', 'partisan',
+  
+  // Institutions
+  'congress', 'senate', 'house of representatives', 'house', 'senator',
+  'representative', 'congressman', 'congresswoman', 'legislator',
+  'parliament', 'parliamentary',
+  
+  // Elections & Voting
+  'election', 'elections', 'electoral', 'vote', 'voting', 'voter',
+  'ballot', 'primary', 'caucus', 'campaign', 'candidate',
+  'ballot initiative', 'referendum', 'polling', 'turnout',
+  
+  // Democracy & Civic Participation
+  'democracy', 'democratic', 'republic', 'civic', 'civic engagement',
+  'civil discourse', 'public discourse', 'town hall', 'town meeting',
+  'constituents', 'representation', 'public hearing',
+  
+  // Constitution & Law
+  'constitution', 'constitutional', 'amendment', 'bill of rights',
+  'civil liberties', 'rights', 'legal', 'law', 'regulation',
+  
+  // Political Parties & Ideology
+  'democrat', 'democratic party', 'republican', 'republican party',
+  'progressive', 'conservative', 'liberal', 'moderate',
+  'left-wing', 'right-wing', 'centrist',
+  
+  // Judiciary
+  'supreme court', 'scotus', 'court', 'courts', 'judicial', 'judiciary',
+  'justice', 'judge', 'ruling', 'verdict', 'legal ruling',
+  
+  // Policy Areas - Healthcare
+  'healthcare', 'health care', 'medicaid', 'medicare', 'obamacare', 'aca',
+  'insurance', 'medical policy', 'reproductive rights', 'abortion policy',
+  'prescription drug', 'pharmaceutical policy',
+  
+  // Policy Areas - Economy
+  'economy', 'economic policy', 'budget', 'deficit', 'surplus',
+  'tax policy', 'taxation', 'fiscal policy', 'monetary policy',
+  'inflation policy', 'employment policy', 'wages policy', 'trade policy',
+  'tariff', 'sanctions', 'economic reform',
+  
+  // Policy Areas - Immigration
+  'immigration', 'immigration policy', 'border policy', 'asylum',
+  'refugee policy', 'citizenship', 'visa policy', 'deportation',
+  'immigration reform',
+  
+  // Policy Areas - Environment
+  'climate policy', 'environmental policy', 'energy policy',
+  'renewable energy policy', 'carbon policy', 'emissions',
+  'epa', 'environmental regulation', 'climate legislation',
+  
+  // Policy Areas - Education
+  'education policy', 'school policy', 'student loan', 'student debt',
+  'education reform', 'curriculum policy', 'teacher policy',
+  'school board', 'education funding',
+  
+  // Policy Areas - Foreign Policy
+  'foreign policy', 'diplomacy', 'diplomatic', 'treaty', 'nato',
+  'defense policy', 'military policy', 'national security',
+  'international relations', 'foreign aid',
+  
+  // Policy Areas - Civil Rights
+  'civil rights', 'voting rights', 'discrimination policy',
+  'equality', 'justice reform', 'police reform', 'criminal justice',
+  'racial justice', 'lgbtq rights', 'lgbtq policy',
+  
+  // Policy Areas - Veterans
+  'veteran policy', 'veterans affairs', 'va', 'veteran benefits',
+  'gi bill', 'military service',
+  
+  // Policy Areas - Housing
+  'housing policy', 'homelessness', 'affordable housing',
+  'zoning', 'urban policy', 'shelter policy',
+  
+  // Legislative Process
+  'bill', 'introduced bill', 'passed', 'vetoed', 'override',
+  'committee', 'hearing', 'markup', 'floor vote', 'cloture',
+  'filibuster', 'amendment', 'resolution',
+  
+  // Political Commentary
+  'political commentary', 'political analysis', 'policy debate',
+  'debate', 'discussion', 'dialogue', 'compromise', 'negotiation',
+  'agreement', 'common ground', 'across the aisle',
+  
+  // Media & Information
+  'fact check', 'misinformation', 'disinformation',
+  'media literacy', 'political news', 'press conference',
+  
+  // Local Government
+  'city council', 'mayor', 'local government', 'municipal',
+  'county', 'township', 'public safety policy', 'infrastructure policy'
+];
+
+// HOBBY/LIFESTYLE EXCLUSION KEYWORDS - automatic rejection
+const HOBBY_LIFESTYLE_EXCLUSIONS = [
+  // Nature & Gardening
+  'flower', 'flowers', 'plant', 'plants', 'garden', 'gardening',
+  'planting', 'botanical', 'flora', 'bloom', 'blooming',
+  
+  // Photography & Art
+  'photography', 'photo', 'picture', 'camera', 'lens', 'shot',
+  'photographer', 'photoshoot', 'selfie',
+  'drawing', 'art', 'artwork', 'illustration', 'sketch', 'painting',
+  'canvas', 'artist', 'artistic',
+  
+  // Pets & Animals
+  'dog', 'dogs', 'puppy', 'puppies', 'cat', 'cats', 'kitten', 'kittens',
+  'pet', 'pets', 'animal', 'animals', 'bird', 'fish', 'hamster',
+  'rabbit', 'guinea pig', 'ferret', 'reptile',
+  
+  // Tech & Gaming (non-policy)
+  'computer', 'tech support', 'coding', 'programming', 'game', 'gaming',
+  'gamer', 'video game', 'console', 'pc gaming', 'minecraft',
+  'fortnite', 'playstation', 'xbox', 'nintendo',
+  
+  // Creative Writing
+  'writing prompt', 'fiction', 'poem', 'poetry', 'short story',
+  'fanfic', 'fanfiction', 'creative writing',
+  
+  // Entertainment & Humor
+  'meme', 'memes', 'joke', 'jokes', 'humor', 'funny', 'lol',
+  'comedy', 'comedian',
+  
+  // Crafts & Hobbies
+  'hobby', 'hobbies', 'sewing', 'crafting', 'craft', 'crochet',
+  'knitting', 'knit', 'cosplay', 'diy', 'handmade',
+  'woodworking', 'pottery', 'ceramics',
+  
+  // Food & Cooking
+  'food', 'recipe', 'recipes', 'cooking', 'baking', 'bake',
+  'delicious', 'yummy', 'tasty', 'meal', 'dinner', 'lunch',
+  'breakfast', 'cuisine', 'chef',
+  
+  // Personal Updates
+  'my day', 'personal update', 'daily life', 'morning routine',
+  'good morning', 'goodnight', 'having fun', 'weekend vibes',
+  
+  // Sports & Fitness (non-policy)
+  'workout', 'gym', 'fitness', 'exercise', 'training',
+  'sports team', 'soccer', 'football game', 'basketball game',
+  'baseball game', 'hockey game',
+  
+  // Fashion & Beauty
+  'fashion', 'outfit', 'style', 'makeup', 'beauty', 'skincare',
+  'hair', 'nails', 'clothing', 'accessories',
+  
+  // Travel (non-policy)
+  'vacation', 'holiday', 'trip', 'traveling', 'tourist',
+  'sightseeing', 'beach day', 'resort',
+  
+  // Music & Entertainment (non-policy)
+  'concert', 'band', 'musician', 'album', 'song', 'lyrics',
+  'playlist', 'music video',
+  
+  // General Lifestyle
+  'lifestyle', 'life hack', 'self care', 'wellness',
+  'meditation', 'yoga', 'zen', 'mindfulness'
+];
+
+// PROFANITY & UNCIVIL LANGUAGE - automatic rejection
+const UNCIVIL_KEYWORDS = [
+  'hate', 'stupid', 'idiot', 'moron', 'trash', 'garbage', 'scum',
+  'destroy', 'enemy', 'traitor', 'brainwashed', 'sheep',
+  'dumbass', 'dumb ass', 'loser', 'losers', 'pathetic', 'worthless'
+];
+
+/**
+ * Check if content contains hobby/lifestyle keywords (EXCLUSION FILTER)
+ * Returns true if ANY hobby/lifestyle keyword is found
+ */
+function containsHobbyLifestyleContent(text: string): boolean {
+  const lowerText = text.toLowerCase();
+  
+  return HOBBY_LIFESTYLE_EXCLUSIONS.some(keyword => 
+    lowerText.includes(keyword.toLowerCase())
+  );
+}
+
+/**
+ * Check if content contains uncivil language (using advanced moderation)
+ * Returns true if profanity, insults, slurs, or harassment detected
+ */
+function containsUncivilLanguage(text: string): boolean {
+  // Use the robust content moderation system
+  const moderationResult = moderateContent(text);
+  
+  // Reject if any violation detected (profanity, threats, disrespect, etc.)
+  if (moderationResult.isViolation) {
+    return true;
+  }
+  
+  // Also check basic uncivil keywords
+  const lowerText = text.toLowerCase();
+  return UNCIVIL_KEYWORDS.some(keyword => 
+    lowerText.includes(keyword.toLowerCase())
+  );
+}
+
+/**
+ * Check if content contains political/civic keywords (INCLUSION FILTER)
+ * Returns true if AT LEAST ONE civic/political keyword is found
+ */
+function containsPoliticalCivicContent(text: string): boolean {
+  const lowerText = text.toLowerCase();
+  
+  return CIVIC_KEYWORDS.some(keyword => 
+    lowerText.includes(keyword.toLowerCase())
+  );
+}
+
+/**
+ * Calculate a basic civility score based on keyword presence
+ * Score: 0-100 (higher is more civil)
+ */
+function calculateCivilityScore(text: string): number {
+  const lowerText = text.toLowerCase();
+  let score = 50; // Start neutral
+  
+  // Boost for positive civic engagement keywords
+  const civicMatches = CIVIC_KEYWORDS.filter(keyword => 
+    lowerText.includes(keyword.toLowerCase())
+  ).length;
+  score += Math.min(civicMatches * 5, 30); // Max +30 for civic keywords
+  
+  // Penalize for negative/uncivil keywords
+  const negativeMatches = UNCIVIL_KEYWORDS.filter(keyword => 
+    lowerText.includes(keyword.toLowerCase())
+  ).length;
+  score -= negativeMatches * 15; // -15 per negative keyword
+  
+  // Check for content moderation violations
+  const moderationResult = moderateContent(text);
+  if (moderationResult.isViolation) {
+    // Deduct based on severity
+    if (moderationResult.severity === 'severe') {
+      score -= 50;
+    } else if (moderationResult.severity === 'moderate') {
+      score -= 30;
+    } else {
+      score -= 15;
+    }
+  }
+  
+  // Clamp between 0-100
+  return Math.max(0, Math.min(100, score));
+}
+
+/**
+ * Extract safety labels from ATProto post
+ */
+function extractSafetyLabels(post: AppBskyFeedDefs.FeedViewPost): string[] {
+  const labels: string[] = [];
+  
+  // Check post labels
+  if (post.post.labels && Array.isArray(post.post.labels)) {
+    for (const label of post.post.labels) {
+      if (label.val) {
+        labels.push(label.val);
+      }
+    }
+  }
+  
+  // Check author labels
+  if (post.post.author?.labels && Array.isArray(post.post.author.labels)) {
+    for (const label of post.post.author.labels) {
+      if (label.val) {
+        labels.push(`author:${label.val}`);
+      }
+    }
+  }
+  
+  return labels;
+}
+
+/**
+ * Check if post has critical safety issues that should block import
+ */
+function hasCriticalSafetyIssues(labels: string[]): boolean {
+  const criticalLabels = [
+    'spam',
+    'sexual',
+    'porn',
+    'graphic-media',
+    'self-harm',
+    'violence',
+    'hate',
+    'intolerant',
+    'rude',
+    'threat',
+    'author:spam',
+    'author:impersonation'
+  ];
+  
+  return labels.some(label => criticalLabels.includes(label.toLowerCase()));
+}
+
+/**
+ * Extract topics from post content
+ */
+function extractTopics(text: string): string[] {
+  const lowerText = text.toLowerCase();
+  const topics: string[] = [];
+  
+  if (lowerText.match(/\b(policy|policies|legislation|bill)\b/)) {
+    topics.push('policy');
+  }
+  if (lowerText.match(/\b(bipartisan|compromise|agreement|unity|together|across the aisle|both parties|reach across|common ground|meet in the middle)\b/)) {
+    topics.push('bipartisan');
+  }
+  if (lowerText.match(/\b(civic|citizen|democracy|vote|voting|engagement|show up to vote|constituents)\b/)) {
+    topics.push('civic-engagement');
+  }
+  if (lowerText.match(/\b(congress|senate|house|representative|senator|committee hearing|markup|floor vote)\b/)) {
+    topics.push('congress');
+  }
+  if (lowerText.match(/\b(election|campaign|ballot|primary|candidate|ballot initiative)\b/)) {
+    topics.push('election');
+  }
+  if (lowerText.match(/\b(healthcare|medicaid|medicare|insurance|medical|health|abortion|reproductive)\b/)) {
+    topics.push('healthcare');
+  }
+  if (lowerText.match(/\b(economy|budget|deficit|tax|taxes|inflation|jobs|employment|wages|fiscal|trade)\b/)) {
+    topics.push('economy');
+  }
+  if (lowerText.match(/\b(supreme court|scotus|judicial|justice|court|ruling)\b/)) {
+    topics.push('judiciary');
+  }
+  if (lowerText.match(/\b(immigration|border|asylum|refugee|citizenship|visa)\b/)) {
+    topics.push('immigration');
+  }
+  if (lowerText.match(/\b(climate|environment|energy|renewable|carbon|pollution|epa|emissions)\b/)) {
+    topics.push('environment');
+  }
+  if (lowerText.match(/\b(education|school|student|loan|debt|university|college|teacher|school board)\b/)) {
+    topics.push('education');
+  }
+  if (lowerText.match(/\b(foreign policy|diplomacy|treaty|nato|defense|military|sanctions)\b/)) {
+    topics.push('foreign-policy');
+  }
+  if (lowerText.match(/\b(civil rights|discrimination|equality|justice reform|voting rights|lgbtq|racial justice)\b/)) {
+    topics.push('civil-rights');
+  }
+  if (lowerText.match(/\b(veteran|veterans|va|military service|gi bill)\b/)) {
+    topics.push('veterans');
+  }
+  if (lowerText.match(/\b(homeless|homelessness|housing|shelter|affordable housing)\b/)) {
+    topics.push('homelessness');
+  }
+  if (lowerText.match(/\b(city council|school board|mayor|town hall|local government|municipal|county|township)\b/)) {
+    topics.push('local-government');
+  }
+  if (lowerText.match(/\b(zoning|water|public safety|infrastructure|community|district maps|public hearing)\b/)) {
+    topics.push('community-issues');
+  }
+  if (lowerText.match(/\b(representation|democracy|voting rights|ballot initiative|constituents)\b/)) {
+    topics.push('democracy');
+  }
+  if (lowerText.match(/\b(misinformation|disinformation|fact check|sources|media literacy|credibility|verification)\b/)) {
+    topics.push('media-literacy');
+  }
+  if (lowerText.match(/\b(dialogue|conversation|debate|discussion|civil discourse|common ground|agree to disagree)\b/)) {
+    topics.push('dialogue');
+  }
+  
+  return topics.length > 0 ? topics : ['general-politics'];
+}
+
+/**
+ * STRICT: Check if content is relevant to civic/political dialogue
+ * This is the main filter that enforces political/civic content only
+ * 
+ * Rejection Priority:
+ * 1. Hobby/lifestyle content → REJECT
+ * 2. Uncivil language/profanity → REJECT
+ * 3. No political/civic keywords → REJECT
+ * 4. Too short → REJECT
+ * 5. Low civility score → REJECT
+ */
+function isRelevantContent(text: string, rejectionReason: { reason: string }): boolean {
+  // Priority 1: REJECT if contains hobby/lifestyle keywords
+  if (containsHobbyLifestyleContent(text)) {
+    rejectionReason.reason = 'hobby_lifestyle';
+    return false;
+  }
+  
+  // Priority 2: REJECT if contains profanity, insults, slurs, or hostile tone
+  if (containsUncivilLanguage(text)) {
+    rejectionReason.reason = 'uncivil_language';
+    return false;
+  }
+  
+  // Priority 3: REJECT if does NOT contain political/civic keywords
+  if (!containsPoliticalCivicContent(text)) {
+    rejectionReason.reason = 'not_political_civic';
+    return false;
+  }
+  
+  // Priority 4: REJECT if too short (spam/low quality filter)
+  if (text.length < 50) {
+    rejectionReason.reason = 'too_short';
+    return false;
+  }
+  
+  // Priority 5: Calculate and check civility score
+  const civilityScore = calculateCivilityScore(text);
+  if (civilityScore < 40) {
+    rejectionReason.reason = 'low_civility_score';
+    return false;
+  }
+  
+  // PASSED all filters - this is political/civic content!
+  return true;
+}
+
+/**
+ * Get or create an authenticated Bluesky agent with session caching
+ * This reduces authentication calls and improves reliability
+ */
+async function getAuthenticatedAgent(): Promise<{ agent: BskyAgent; identifier: string } | { error: string }> {
+  console.log('=== BLUESKY AUTHENTICATION START ===');
+  
+  // Check if we have a valid cached session
+  if (cachedAgent && Date.now() < cacheExpiry) {
+    console.log('✓ Using cached Bluesky session (valid until', new Date(cacheExpiry).toISOString(), ')');
+    const platformUser = await prisma.user.findFirst({
+      where: { role: 'PLATFORM_FOUNDER' },
+      select: { atprotoEmail: true, atprotoHandle: true }
+    });
+    const identifier = platformUser?.atprotoEmail || platformUser?.atprotoHandle || '';
+    console.log('✓ Cached session identifier:', identifier);
+    return { agent: cachedAgent, identifier };
+  }
+
+  console.log('ℹ No valid cached session, creating new authentication...');
+
+  // Get platform founder credentials
+  const platformUser = await prisma.user.findFirst({
+    where: { role: 'PLATFORM_FOUNDER' },
+    select: {
+      atprotoHandle: true,
+      atprotoEmail: true
+    }
+  });
+
+  console.log('Platform Founder Credentials:');
+  console.log('  - atprotoEmail:', platformUser?.atprotoEmail || '(not set)');
+  console.log('  - atprotoHandle:', platformUser?.atprotoHandle || '(not set)');
+
+  if (!platformUser?.atprotoHandle && !platformUser?.atprotoEmail) {
+    console.error('✗ ERROR: Platform founder has no Bluesky account linked');
+    return { error: 'Platform founder has no Bluesky account linked' };
+  }
+
+  // Get app password from environment
+  const appPassword = process.env.BLUESKY_APP_PASSWORD;
+  
+  if (!appPassword) {
+    console.error('✗ ERROR: Bluesky app password not configured in server environment');
+    return { error: 'Bluesky app password not configured in server environment' };
+  }
+
+  // Validate app password format (should be xxxx-xxxx-xxxx-xxxx)
+  const isValidFormat = /^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$/.test(appPassword);
+  console.log('  - Password format valid:', isValidFormat ? 'YES' : 'NO (expected: xxxx-xxxx-xxxx-xxxx)');
+
+  // Create new agent and authenticate
+  const agent = new BskyAgent({
+    service: 'https://bsky.social'
+  });
+
+  const identifier = platformUser.atprotoEmail || platformUser.atprotoHandle;
+  console.log('Authentication Attempt:');
+  console.log('  - Service: https://bsky.social');
+  console.log('  - Identifier:', identifier);
+  console.log('  - Using:', platformUser.atprotoEmail ? 'EMAIL' : 'HANDLE');
+  
+  // Try authentication with retry logic
+  let lastError: any;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      console.log(`\n🔐 Attempt ${attempt}/3: Authenticating with Bluesky...`);
+      
+      await agent.login({
+        identifier: identifier!,
+        password: appPassword
+      });
+      
+      // Success! Cache the agent and set expiry
+      cachedAgent = agent;
+      cacheExpiry = Date.now() + SESSION_LIFETIME;
+      
+      console.log(`✅ SUCCESS! Authenticated with Bluesky as ${identifier}`);
+      console.log('  - Session cached until:', new Date(cacheExpiry).toISOString());
+      console.log('=== BLUESKY AUTHENTICATION END ===\n');
+      return { agent, identifier: identifier! };
+    } catch (authError: any) {
+      lastError = authError;
+      console.error(`\n❌ Attempt ${attempt}/3 FAILED:`);
+      console.error('  - Error message:', authError?.message || 'No message');
+      console.error('  - Error status:', authError?.status || 'No status');
+      console.error('  - Error code:', authError?.error || 'No code');
+      console.error('  - Full error:', JSON.stringify(authError, null, 2));
+      
+      // Wait before retrying (exponential backoff)
+      if (attempt < 3) {
+        const waitTime = 1000 * attempt;
+        console.log(`⏳ Waiting ${waitTime}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+    }
+  }
+
+  // All attempts failed
+  const errorMessage = lastError?.message || String(lastError);
+  const errorDetails = {
+    message: errorMessage,
+    status: lastError?.status,
+    code: lastError?.error,
+    identifier,
+    passwordFormat: isValidFormat
+  };
+  
+  console.error('\n❌ ALL AUTHENTICATION ATTEMPTS FAILED');
+  console.error('Final error details:', JSON.stringify(errorDetails, null, 2));
+  console.error('=== BLUESKY AUTHENTICATION END ===\n');
+  
+  return { 
+    error: `Authentication failed after 3 attempts: ${errorMessage} (identifier: ${identifier}, status: ${lastError?.status || 'unknown'})` 
+  };
+}
+
+/**
+ * Get or update feed state for cursor management
+ */
+async function getFeedState() {
+  let feedState = await prisma.feedState.findUnique({
+    where: { feedName: FEED_NAME }
+  });
+  
+  if (!feedState) {
+    feedState = await prisma.feedState.create({
+      data: {
+        feedName: FEED_NAME,
+        cursor: null,
+        lastFetchedAt: new Date(),
+        totalFetched: 0,
+        totalApproved: 0,
+        isActive: true
+      }
+    });
+  }
+  
+  return feedState;
+}
+
+/**
+ * Update feed state after fetching (uses upsert to create if missing)
+ */
+async function updateFeedState(
+  cursor: string | null,
+  lastPostUri: string | null,
+  fetchedCount: number,
+  approvedCount: number,
+  error: string | null = null
+) {
+  // Use upsert to handle cases where the record doesn't exist yet
+  // (e.g., when auth fails before getFeedState() is called)
+  await prisma.feedState.upsert({
+    where: { feedName: FEED_NAME },
+    update: {
+      cursor,
+      lastPostUri,
+      lastFetchedAt: new Date(),
+      totalFetched: { increment: fetchedCount },
+      totalApproved: { increment: approvedCount },
+      errorCount: error ? { increment: 1 } : 0,
+      lastError: error
+    },
+    create: {
+      feedName: FEED_NAME,
+      cursor,
+      lastPostUri,
+      lastFetchedAt: new Date(),
+      totalFetched: fetchedCount,
+      totalApproved: approvedCount,
+      errorCount: error ? 1 : 0,
+      lastError: error,
+      isActive: true
+    }
+  });
+}
+
+/**
+ * GET endpoint to fetch and cache Bluesky content using feed API
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const forceRefresh = searchParams.get('refresh') === 'true';
+    const limit = parseInt(searchParams.get('limit') || '10', 10);
+    
+    // Always return cached content first unless forceRefresh
+    if (!forceRefresh) {
+      const cachedContent = await prisma.externalContent.findMany({
+        where: {
+          platform: 'bluesky',
+          isApproved: true
+        },
+        orderBy: {
+          importedAt: 'desc'
+        },
+        take: limit
+      });
+      
+      if (cachedContent.length > 0) {
+        return NextResponse.json({
+          content: cachedContent,
+          cached: true,
+          timestamp: new Date().toISOString(),
+          diagnostics: null
+        });
+      }
+    }
+    
+    // Get authenticated Bluesky agent
+    const authResult = await getAuthenticatedAgent();
+    
+    if ('error' in authResult) {
+      await updateFeedState(null, null, 0, 0, authResult.error);
+      console.error('Authentication error:', authResult.error);
+      return NextResponse.json({
+        content: [],
+        cached: false,
+        imported: 0,
+        timestamp: new Date().toISOString(),
+        diagnostics: {
+          feedStats: {
+            feedName: FEED_NAME,
+            cursor: null,
+            postsProcessed: 0,
+            postsImported: 0,
+            error: authResult.error
+          },
+          filterStats: {
+            totalPosts: 0,
+            safetyIssues: 0,
+            alreadyExists: 0,
+            hobbyLifestyle: 0,
+            uncivilLanguage: 0,
+            notPoliticalCivic: 0,
+            tooShort: 0,
+            lowCivilityScore: 0,
+            approved: 0
+          },
+          timestamp: new Date().toISOString()
+        }
+      }, { status: 401 });
+    }
+
+    const { agent, identifier } = authResult;
+    console.log(`✓ Using Bluesky agent authenticated as ${identifier}`);
+    
+    // Get feed state for cursor management
+    const feedState = await getFeedState();
+    console.log('=== FEED STATE ===');
+    console.log(`Feed: ${FEED_NAME}`);
+    console.log(`Current cursor: ${feedState.cursor || 'start'}`);
+    console.log(`Total fetched (all time): ${feedState.totalFetched}`);
+    console.log(`Total approved (all time): ${feedState.totalApproved}`);
+    
+    // Fetch from feed using cursor for pagination
+    let feedResponse;
+    try {
+      console.log(`\n🔄 Fetching from feed: ${FEED_URI}`);
+      console.log(`Limit: ${FEED_FETCH_LIMIT}, Cursor: ${feedState.cursor || 'none (starting fresh)'}`);
+      
+      feedResponse = await agent.app.bsky.feed.getFeed({
+        feed: FEED_URI,
+        limit: FEED_FETCH_LIMIT,
+        cursor: feedState.cursor || undefined
+      });
+      
+      console.log(`✅ Feed fetch successful! Received ${feedResponse.data.feed.length} posts`);
+      console.log(`New cursor: ${feedResponse.data.cursor || 'end of feed'}`);
+    } catch (error: any) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      const errorStatus = error?.status || error?.response?.status;
+      
+      console.error('❌ Feed fetch failed:', errorMsg);
+      console.error('   Status:', errorStatus || 'unknown');
+      
+      await updateFeedState(feedState.cursor, null, 0, 0, errorMsg);
+      
+      // Determine appropriate status code based on error type
+      let responseStatus = 502; // Default to Bad Gateway (upstream issue)
+      let userMessage = 'Failed to fetch content from Bluesky';
+      
+      if (errorStatus === 429 || errorMsg.toLowerCase().includes('rate limit')) {
+        responseStatus = 429;
+        userMessage = 'Bluesky API rate limit exceeded. Please try again in 10-15 minutes.';
+        console.error('[EXTERNAL CONTENT] ⚠️ Rate limit detected - backoff required');
+      } else if (errorStatus === 401 || errorStatus === 403) {
+        responseStatus = 502;
+        userMessage = 'Bluesky authentication issue. This is temporary.';
+        console.error('[EXTERNAL CONTENT] ⚠️ Authentication error from Bluesky');
+      } else if (errorMsg.toLowerCase().includes('network') || errorMsg.toLowerCase().includes('timeout')) {
+        responseStatus = 503;
+        userMessage = 'Bluesky service temporarily unavailable';
+        console.error('[EXTERNAL CONTENT] ⚠️ Network connectivity issue');
+      }
+      
+      return NextResponse.json({
+        content: [],
+        cached: false,
+        imported: 0,
+        timestamp: new Date().toISOString(),
+        diagnostics: {
+          feedStats: {
+            feedName: FEED_NAME,
+            cursor: feedState.cursor,
+            postsProcessed: 0,
+            postsImported: 0,
+            error: userMessage // Return user-friendly message, not raw error
+          },
+          filterStats: {
+            totalPosts: 0,
+            safetyIssues: 0,
+            alreadyExists: 0,
+            hobbyLifestyle: 0,
+            uncivilLanguage: 0,
+            notPoliticalCivic: 0,
+            tooShort: 0,
+            lowCivilityScore: 0,
+            approved: 0
+          },
+          timestamp: new Date().toISOString()
+        }
+      }, { status: responseStatus });
+    }
+    
+    const allPosts = feedResponse.data.feed;
+    const newCursor = feedResponse.data.cursor || null;
+    
+    console.log('=== FEED STATS ===');
+    console.log(`Posts received: ${allPosts.length}`);
+    console.log(`Cursor will advance: ${feedState.cursor || 'start'} → ${newCursor || 'end'}`);
+    
+    // Filter and process posts
+    const processedPosts: any[] = [];
+    let filterStats = {
+      totalPosts: allPosts.length,
+      hobbyLifestyle: 0,
+      uncivilLanguage: 0,
+      notPoliticalCivic: 0,
+      tooShort: 0,
+      lowCivilityScore: 0,
+      safetyIssues: 0,
+      alreadyExists: 0,
+      approved: 0
+    };
+    
+    let lastProcessedUri: string | null = null;
+    
+    for (const feedItem of allPosts) {
+      try {
+        const post = feedItem.post;
+        const postRecord = post.record as any; // Type assertion for AT Protocol post record
+        const content = postRecord?.text || '';
+        const postUri = post.uri;
+        
+        lastProcessedUri = postUri;
+        
+        // Extract safety labels
+        const safetyLabels = extractSafetyLabels(feedItem);
+        const hasSafetyIssues = hasCriticalSafetyIssues(safetyLabels);
+        
+        // Skip if has critical safety issues
+        if (hasSafetyIssues) {
+          filterStats.safetyIssues++;
+          console.log(`⚠️ Post blocked (safety): ${safetyLabels.join(', ')} - "${content.substring(0, 60)}..."`);
+          continue;
+        }
+        
+        // Check if post already exists in database
+        const existing = await prisma.externalContent.findFirst({
+          where: {
+            platform: 'bluesky',
+            externalId: postUri
+          }
+        });
+        
+        if (existing) {
+          filterStats.alreadyExists++;
+          continue;
+        }
+        
+        // STRICT FILTERING: Check if relevant to political/civic dialogue
+        const rejectionReason = { reason: '' };
+        if (!isRelevantContent(content, rejectionReason)) {
+          // Track specific rejection reason
+          switch (rejectionReason.reason) {
+            case 'hobby_lifestyle':
+              filterStats.hobbyLifestyle++;
+              console.log(`✗ Rejected (hobby/lifestyle): "${content.substring(0, 80)}..."`);
+              break;
+            case 'uncivil_language':
+              filterStats.uncivilLanguage++;
+              console.log(`✗ Rejected (uncivil language): "${content.substring(0, 80)}..."`);
+              break;
+            case 'not_political_civic':
+              filterStats.notPoliticalCivic++;
+              // Silently reject - this will be the most common rejection
+              break;
+            case 'too_short':
+              filterStats.tooShort++;
+              break;
+            case 'low_civility_score':
+              filterStats.lowCivilityScore++;
+              console.log(`✗ Rejected (low civility score): "${content.substring(0, 80)}..."`);
+              break;
+          }
+          continue;
+        }
+        
+        // Calculate metrics for approved posts
+        const civilityScore = calculateCivilityScore(content);
+        const topics = extractTopics(content);
+        
+        // If it passed isRelevantContent, it's auto-approved
+        const isApproved = true;
+        filterStats.approved++;
+        console.log(`✅ Approved (civic content, score ${civilityScore}): "${content.substring(0, 80)}..."`);
+
+        
+        // Store in database with all new fields
+        const externalContent = await prisma.externalContent.create({
+          data: {
+            platform: 'bluesky',
+            externalId: postUri,
+            authorHandle: post.author.handle,
+            authorName: post.author.displayName || post.author.handle,
+            authorDid: post.author.did,
+            content: content,
+            createdAt: new Date(post.indexedAt),
+            importedAt: new Date(),
+            isApproved: isApproved,
+            topics: topics,
+            civilityScore: civilityScore,
+            likeCount: post.likeCount || 0,
+            replyCount: post.replyCount || 0,
+            repostCount: post.repostCount || 0,
+            isThread: false,
+            safetyLabels: safetyLabels,
+            hasSafetyIssues: false, // Already filtered critical ones
+            feedSource: FEED_URI,
+            indexedAt: new Date(post.indexedAt)
+          }
+        });
+        
+        if (isApproved) {
+          processedPosts.push(externalContent);
+        }
+      } catch (error) {
+        console.error('Error processing post:', error);
+      }
+    }
+    
+    console.log('=== FILTER STATS ===');
+    console.log(`Total posts to process: ${filterStats.totalPosts}`);
+    console.log(`✗ Rejected - Safety issues: ${filterStats.safetyIssues}`);
+    console.log(`✗ Rejected - Already exists: ${filterStats.alreadyExists}`);
+    console.log(`✗ Rejected - Hobby/lifestyle content: ${filterStats.hobbyLifestyle}`);
+    console.log(`✗ Rejected - Uncivil language/profanity: ${filterStats.uncivilLanguage}`);
+    console.log(`✗ Rejected - Not political/civic: ${filterStats.notPoliticalCivic}`);
+    console.log(`✗ Rejected - Too short: ${filterStats.tooShort}`);
+    console.log(`✗ Rejected - Low civility score: ${filterStats.lowCivilityScore}`);
+    console.log(`✅ Approved (political/civic content): ${filterStats.approved}`);
+    console.log(`💾 Actually imported to DB: ${processedPosts.length}`);
+    
+    // Update feed state with cursor and stats
+    await updateFeedState(
+      newCursor,
+      lastProcessedUri,
+      allPosts.length,
+      filterStats.approved,
+      null // No error
+    );
+    
+    console.log('✅ Feed state updated successfully');
+    console.log(`Next fetch will resume from: ${newCursor || 'start (feed completed, will loop)'}`);
+    
+    // Prepare diagnostics for client
+    const diagnosticsData = {
+      feedStats: {
+        feedName: FEED_NAME,
+        feedUri: FEED_URI,
+        previousCursor: feedState.cursor,
+        newCursor: newCursor,
+        postsProcessed: allPosts.length,
+        postsImported: filterStats.approved,
+        totalFetchedAllTime: feedState.totalFetched + allPosts.length,
+        totalApprovedAllTime: feedState.totalApproved + filterStats.approved
+      },
+      filterStats: {
+        totalPosts: filterStats.totalPosts,
+        safetyIssues: filterStats.safetyIssues,
+        alreadyExists: filterStats.alreadyExists,
+        hobbyLifestyle: filterStats.hobbyLifestyle,
+        uncivilLanguage: filterStats.uncivilLanguage,
+        notPoliticalCivic: filterStats.notPoliticalCivic,
+        tooShort: filterStats.tooShort,
+        lowCivilityScore: filterStats.lowCivilityScore,
+        approved: filterStats.approved
+      },
+      timestamp: new Date().toISOString()
+    };
+    
+    // Return the newly imported content with diagnostics
+    const finalContent = await prisma.externalContent.findMany({
+      where: {
+        platform: 'bluesky',
+        isApproved: true
+      },
+      orderBy: {
+        importedAt: 'desc'
+      },
+      take: limit
+    });
+    
+    return NextResponse.json({
+      content: finalContent,
+      cached: false,
+      imported: processedPosts.length,
+      timestamp: new Date().toISOString(),
+      diagnostics: diagnosticsData
+    });
+    
+  } catch (error: any) {
+    console.error('[EXTERNAL CONTENT] Unexpected error:', error);
+    
+    // Determine appropriate error response based on error type
+    let statusCode = 500;
+    let errorMessage = 'Failed to fetch external content';
+    let errorDetails = error instanceof Error ? error.message : String(error);
+    
+    // Check for specific error types
+    if (error?.status === 429 || error?.message?.toLowerCase().includes('rate limit')) {
+      statusCode = 429;
+      errorMessage = 'Bluesky API rate limit exceeded';
+      errorDetails = 'Too many requests. Please try again in a few minutes.';
+      console.error('[EXTERNAL CONTENT] Rate limit detected');
+    } else if (error?.status === 401 || error?.status === 403) {
+      statusCode = 502; // Bad Gateway - upstream authentication failed
+      errorMessage = 'Bluesky authentication failed';
+      errorDetails = 'Unable to authenticate with Bluesky. This is a temporary issue.';
+      console.error('[EXTERNAL CONTENT] Upstream authentication error');
+    } else if (error?.message?.toLowerCase().includes('network') || error?.message?.toLowerCase().includes('fetch')) {
+      statusCode = 503; // Service Unavailable
+      errorMessage = 'Bluesky service temporarily unavailable';
+      errorDetails = 'Could not connect to Bluesky. Please try again later.';
+      console.error('[EXTERNAL CONTENT] Network/connectivity error');
+    }
+    
+    // Return structured error response
+    return NextResponse.json(
+      { 
+        error: errorMessage, 
+        details: errorDetails,
+        timestamp: new Date().toISOString(),
+        content: [], // Always include empty content array for UI compatibility
+        cached: false
+      },
+      { status: statusCode }
+    );
+  }
+}

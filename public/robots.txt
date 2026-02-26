@@ -1,0 +1,89 @@
+
+# Robots.txt for Bridging the Aisle - Civil Political Discussion Platform
+# Allow all search engines and AI crawlers to index public content
+
+# All web crawlers (Google, Bing, etc.)
+User-agent: *
+Allow: /
+Allow: /about
+Allow: /faq
+Allow: /how-it-works
+Allow: /community-standards/public
+Allow: /privacy/public
+Allow: /groups
+Allow: /politics
+Allow: /auth/signin
+Allow: /auth/signup
+
+# Disallow private/authenticated areas
+Disallow: /dashboard
+Disallow: /profile
+Disallow: /admin
+Disallow: /moderation
+Disallow: /friends
+Disallow: /api/
+
+# AI Crawlers - OpenAI GPTBot
+User-agent: GPTBot
+Allow: /
+Allow: /about
+Allow: /faq
+Allow: /how-it-works
+Allow: /community-standards/public
+Allow: /privacy/public
+Disallow: /dashboard
+Disallow: /profile
+Disallow: /admin
+Disallow: /api/
+
+# AI Crawlers - Google-Extended (Bard/Gemini)
+User-agent: Google-Extended
+Allow: /
+Allow: /about
+Allow: /faq
+Allow: /how-it-works
+Allow: /community-standards/public
+Allow: /privacy/public
+Disallow: /dashboard
+Disallow: /profile
+Disallow: /admin
+Disallow: /api/
+
+# AI Crawlers - Anthropic Claude
+User-agent: anthropic-ai
+Allow: /
+Allow: /about
+Allow: /faq
+Allow: /how-it-works
+Allow: /community-standards/public
+Allow: /privacy/public
+Disallow: /dashboard
+Disallow: /profile
+Disallow: /admin
+Disallow: /api/
+
+# AI Crawlers - Common Crawl
+User-agent: CCBot
+Allow: /
+Allow: /about
+Allow: /faq
+Allow: /how-it-works
+Allow: /community-standards/public
+Allow: /privacy/public
+
+# AI Crawlers - Perplexity
+User-agent: PerplexityBot
+Allow: /
+Allow: /about
+Allow: /faq
+Allow: /how-it-works
+Allow: /community-standards/public
+Allow: /privacy/public
+Disallow: /dashboard
+Disallow: /profile
+Disallow: /admin
+Disallow: /api/
+
+# Sitemap location
+Sitemap: https://bridgingtheaisle.com/sitemap.xml
+Sitemap: https://bridgingtheaisle-gbbfgy.abacusai.app/sitemap.xml

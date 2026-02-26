@@ -1,0 +1,562 @@
+generator client {
+    provider = "prisma-client-js"
+    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+  
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+    USER
+    MODERATOR
+    PLATFORM_FOUNDER
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  password           String?
+  name               String?
+  firstName          String?
+  lastName           String?
+  username           String?   @unique // Optional pseudonymous username
+  bio                String?
+  profileImage       String?
+  avatarStyle        String?   // "adventurer", "avataaars", "bottts", "lorelei", etc.
+  avatarSeed         String?   // Seed for avatar generation
+  useAvatar          Boolean   @default(false) // True if using generated avatar instead of photo
+  politicalLeaning   String?   // "liberal", "conservative", "centrist", "libertarian", "other"
+  isVerified         Boolean   @default(false)
+  civilityScore      Float     @default(5.0) // 1-10 rating
+  joinedAt           DateTime  @default(now())
+  lastActive         DateTime  @default(now())
+  emailVerified      DateTime?
+  verificationToken  String?   // Token for email verification
+  verificationTokenExpiry DateTime? // Expiry time for verification token
+  
+  // Phone verification
+  phone              String?   @unique
+  phoneVerified      Boolean   @default(false)
+  phoneVerifiedAt    DateTime?
+  
+  // Device fingerprinting
+  deviceFingerprints String[]  // Array of device fingerprints
+  
+  // Privacy Settings
+  displayNamePreference String   @default("username_or_name") // "username_only", "real_name", "username_or_name"
+  showEmail             Boolean  @default(false) // Show email to other users
+  showPoliticalLeaning  Boolean  @default(true)  // Show political affiliation
+  showLastActive        Boolean  @default(false) // Show last active timestamp
+  profileVisibility     String   @default("public") // "public", "friends_only", "private"
+  allowSearch           Boolean  @default(true)  // Allow others to find via search
+  dataCollectionConsent Boolean  @default(false) // Consent for device fingerprinting
+  
+  // Admin & Moderation Status
+  role               UserRole  @default(USER) // USER, MODERATOR, PLATFORM_FOUNDER
+  isAdmin            Boolean   @default(false)
+  isActive           Boolean   @default(true)
+  isSuspended        Boolean   @default(false)
+  suspendedUntil     DateTime?
+  isPermanentlyBanned Boolean  @default(false)
+  violationCount     Int       @default(0)
+  deletedAt          DateTime? // Soft delete timestamp - accounts can be reinstated within 30 days
+  restrictionLevel   String    @default("none") // "none", "read_only", "approval_required"
+  
+  // AT Protocol Integration (Phase 1: Identity)
+  atprotoHandle          String?   @unique // Bluesky handle (e.g., "user.bsky.social")
+  atprotoDid             String?   @unique // Decentralized Identifier
+  atprotoEmail           String?   // Bluesky account email (for authentication)
+  atprotoLinkedAt        DateTime? // When AT Protocol account was linked
+  atprotoBroadcastEnabled Boolean  @default(false) // Enable broadcasting to Bluesky
+  atprotoAutoBroadcast   Boolean   @default(false) // Automatic broadcasting for new posts (Phase 4)
+  atprotoSyncReactions   Boolean   @default(false) // Sync Bluesky reactions back to BtA (Phase 4)
+  
+  // Per-User Bluesky Token Storage (Encrypted)
+  blueskyEncryptedToken        String?   @db.Text // Encrypted Bluesky access token
+  blueskyEncryptedRefreshToken String?   @db.Text // Encrypted Bluesky refresh token (for automatic renewal)
+  blueskyTokenExpiry           DateTime? // Access token expiration time
+  blueskyConnectedAt           DateTime? // When user first connected their Bluesky account
+  blueskyAutoPost              Boolean   @default(false) // Auto-post to Bluesky
+  
+  // NextAuth relations
+  accounts           Account[]
+  sessions           Session[]
+  
+  // Social features
+  posts              Post[]
+  comments           Comment[]
+  reactions          Reaction[]
+  
+  // Quote relations
+  quotedInPosts      Post[]    @relation("PostQuotedAuthor")
+  quotedInComments   Comment[] @relation("CommentQuotedAuthor")
+  
+  // Friendship system
+  sentFriendRequests     Friendship[] @relation("FriendshipRequester")
+  receivedFriendRequests Friendship[] @relation("FriendshipReceiver")
+  
+  // Groups
+  groupMemberships   GroupMember[]
+  createdGroups      Group[]
+  
+  // Moderation
+  moderationActions  ModerationAction[]
+  contentReports     ContentReport[]
+  violations         UserViolation[]
+  suspensions        UserSuspension[]
+  
+  // Notifications
+  notifications      Notification[] @relation("UserNotifications")
+  triggeredNotifications Notification[] @relation("NotificationActor")
+  
+  // Content Approvals (as admin)
+  approvedPosts      Post[]    @relation("PostApprover")
+  approvedComments   Comment[] @relation("CommentApprover")
+  approvedExternalContent ExternalContent[]
+  
+  // Activity Logging
+  activityLogs       UserActivityLog[]
+  
+  @@map("users")
+}
+
+model Post {
+  id               String           @id @default(cuid())
+  content          String           @db.Text
+  imageUrl         String?
+  cloudStoragePath String?
+  politicalTags    String[]         // Array of political tags
+  sourceCitation   String?          // URL or citation for fact-checking
+  isFactChecked    Boolean          @default(false)
+  isAnonymous      Boolean          @default(false) // Anonymous posting
+  isPinned         Boolean          @default(false) // Pin post to top of feed
+  civilityScore    Float            @default(5.0)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  editedAt         DateTime?        // Track when post was last edited
+  
+  // Quote/Reply functionality
+  quotedText       String?          @db.Text // Text being quoted from another post
+  quotedAuthorId   String?          // Author of the quoted text
+  quotedAuthor     User?            @relation("PostQuotedAuthor", fields: [quotedAuthorId], references: [id], onDelete: SetNull)
+  
+  // Mentions
+  mentions         String[]         // Array of user IDs mentioned in the post
+  
+  // Content approval for restricted users
+  isApproved       Boolean          @default(true)  // False if needs approval
+  approvedAt       DateTime?
+  approvedById     String?
+  approver         User?            @relation("PostApprover", fields: [approvedById], references: [id])
+  
+  // AT Protocol Cross-platform Sync (Phase 3)
+  atprotoUri           String?      @unique // Bluesky post URI (at://...)
+  atprotoCid           String?      // Content Identifier for the Bluesky post
+  atprotoBroadcastedAt DateTime?    // When post was shared to Bluesky
+  atprotoSyncedAt      DateTime?    // Last time replies were synced from Bluesky
+  atprotoLikeCount     Int          @default(0) // Likes from Bluesky (Phase 4)
+  atprotoRepostCount   Int          @default(0) // Reposts from Bluesky (Phase 4)
+  atprotoReplyCount    Int          @default(0) // Replies from Bluesky (Phase 4)
+  atprotoHasMedia      Boolean      @default(false) // Whether broadcast included media (Phase 4)
+  atprotoEngagementSyncedAt DateTime? // Last time engagement metrics synced (Phase 4)
+  
+  authorId         String
+  author           User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  groupId          String?
+  group            Group?           @relation(fields: [groupId], references: [id])
+  
+  comments         Comment[]
+  reactions        Reaction[]
+  reports          ContentReport[]
+  moderationActions ModerationAction[]
+  violations       UserViolation[]
+  
+  @@map("posts")
+}
+
+model Comment {
+  id               String           @id @default(cuid())
+  content          String           @db.Text
+  sourceCitation   String?
+  isAnonymous      Boolean          @default(false) // Anonymous commenting
+  civilityScore    Float            @default(5.0)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  editedAt         DateTime?        // Track when comment was last edited
+  
+  // Quote/Reply functionality
+  quotedText       String?          @db.Text // Text being quoted from another comment/post
+  quotedAuthorId   String?          // Author of the quoted text
+  quotedAuthor     User?            @relation("CommentQuotedAuthor", fields: [quotedAuthorId], references: [id], onDelete: SetNull)
+  
+  // Mentions
+  mentions         String[]         // Array of user IDs mentioned in the comment
+  
+  // Content approval for restricted users
+  isApproved       Boolean          @default(true)  // False if needs approval
+  approvedAt       DateTime?
+  approvedById     String?
+  approver         User?            @relation("CommentApprover", fields: [approvedById], references: [id])
+  
+  // AT Protocol Cross-platform Sync (Phase 3)
+  atprotoUri           String?      @unique // Bluesky reply URI
+  atprotoCid           String?      // Content Identifier for the Bluesky reply
+  atprotoAuthorHandle  String?      // Handle of Bluesky author (if external)
+  atprotoImportedAt    DateTime?    // When reply was imported from Bluesky
+  isFromBluesky        Boolean      @default(false) // True if originated on Bluesky
+  
+  authorId         String
+  author           User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  postId           String
+  post             Post             @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parentId         String?          // For threaded comments
+  parent           Comment?         @relation("CommentReplies", fields: [parentId], references: [id])
+  replies          Comment[]        @relation("CommentReplies")
+  
+  reactions        Reaction[]
+  reports          ContentReport[]
+  moderationActions ModerationAction[]
+  violations       UserViolation[]
+  
+  @@map("comments")
+}
+
+model Reaction {
+  id        String      @id @default(cuid())
+  type      String      // "like", "dislike", "care", "mad", "angry", "horrified"
+  createdAt DateTime    @default(now())
+  
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String?
+  post      Post?       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  commentId String?
+  comment   Comment?    @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, postId])
+  @@unique([userId, commentId])
+  @@map("reactions")
+}
+
+model Friendship {
+  id          String           @id @default(cuid())
+  status      String           // "pending", "accepted", "blocked"
+  createdAt   DateTime         @default(now())
+  
+  requesterId String
+  requester   User             @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  receiverId  String
+  receiver    User             @relation("FriendshipReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  
+  @@unique([requesterId, receiverId])
+  @@map("friendships")
+}
+
+model Group {
+  id              String        @id @default(cuid())
+  name            String
+  description     String        @db.Text
+  coverImage      String?
+  politicalFocus  String?       // Main political topic/leaning
+  isPrivate       Boolean       @default(false)
+  privacyLevel    String        @default("PUBLIC") // "PUBLIC", "PRIVATE_DISCOVERABLE", "PRIVATE_HIDDEN"
+  civilityRules   String?       @db.Text
+  createdAt       DateTime      @default(now())
+  
+  creatorId       String
+  creator         User          @relation(fields: [creatorId], references: [id])
+  
+  members         GroupMember[]
+  posts           Post[]
+  
+  @@map("groups")
+}
+
+model GroupMember {
+  id         String   @id @default(cuid())
+  role       String   @default("member") // "member", "moderator", "admin"
+  restricted Boolean  @default(false) // If true, member cannot post/comment
+  isHidden   Boolean  @default(false) // If true, member is hidden from member lists (for invisible admins)
+  joinedAt   DateTime @default(now())
+  
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groupId  String
+  group    Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, groupId])
+  @@map("group_members")
+}
+
+model ContentReport {
+  id          String   @id @default(cuid())
+  reason      String   // "harassment", "misinformation", "spam", "hate_speech", "incivility"
+  description String?  @db.Text
+  status      String   @default("pending") // "pending", "reviewed", "resolved", "dismissed"
+  createdAt   DateTime @default(now())
+  
+  reporterId  String
+  reporter    User     @relation(fields: [reporterId], references: [id])
+  postId      String?
+  post        Post?    @relation(fields: [postId], references: [id])
+  commentId   String?
+  comment     Comment? @relation(fields: [commentId], references: [id])
+  
+  @@map("content_reports")
+}
+
+model ModerationAction {
+  id          String   @id @default(cuid())
+  action      String   // "warning", "content_removal", "temporary_suspend", "permanent_ban"
+  reason      String
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime?
+  
+  moderatorId String
+  moderator   User     @relation(fields: [moderatorId], references: [id])
+  postId      String?
+  post        Post?    @relation(fields: [postId], references: [id])
+  commentId   String?
+  comment     Comment? @relation(fields: [commentId], references: [id])
+  
+  @@map("moderation_actions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verificationtokens")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expires   DateTime
+  createdAt DateTime @default(now())
+  used      Boolean  @default(false)
+
+  @@map("password_reset_tokens")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  type      String   // "friend_request", "friend_accept", "comment", "reaction", "group_invite", "mention"
+  title     String
+  message   String
+  link      String?  // URL to the related content
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  userId    String
+  user      User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Optional relations for context
+  actorId   String?  // User who triggered the notification
+  actor     User?    @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  
+  @@index([userId, read])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model UserViolation {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  violationType String   // "inappropriate_language", "name_calling", "disrespect", "harassment"
+  severity      String   // "minor", "moderate", "severe"
+  content       String   @db.Text // The actual content that violated rules
+  flaggedWords  String[] // Array of specific words/phrases that were flagged
+  contentType   String   // "post", "comment"
+  contentId     String   // ID of the post or comment
+  
+  status        String   @default("pending") // "pending", "reviewed", "action_taken", "dismissed"
+  reviewNote    String?  @db.Text
+  actionTaken   String?  // "warning", "suspension_14", "suspension_28", "permanent_ban"
+  
+  createdAt     DateTime @default(now())
+  reviewedAt    DateTime?
+  
+  postId        String?
+  post          Post?    @relation(fields: [postId], references: [id], onDelete: SetNull)
+  commentId     String?
+  comment       Comment? @relation(fields: [commentId], references: [id], onDelete: SetNull)
+  
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("user_violations")
+}
+
+model UserSuspension {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  suspensionType String  // "warning", "14_days", "28_days", "permanent"
+  reason        String   @db.Text
+  violationId   String?  // Link to the violation that caused this suspension
+  
+  startDate     DateTime @default(now())
+  endDate       DateTime? // Null for permanent bans
+  isActive      Boolean  @default(true)
+  
+  createdAt     DateTime @default(now())
+  
+  @@index([userId])
+  @@index([isActive])
+  @@map("user_suspensions")
+}
+
+model PhoneVerification {
+  id        String   @id @default(cuid())
+  phone     String
+  code      String   // 6-digit verification code
+  attempts  Int      @default(0)
+  verified  Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  @@index([phone])
+  @@map("phone_verifications")
+}
+
+model BannedIdentifier {
+  id          String   @id @default(cuid())
+  type        String   // "phone", "device_fingerprint", "ip_address"
+  value       String   // The actual identifier value
+  reason      String   @db.Text
+  bannedUserId String? // Original user that was banned
+  createdAt   DateTime @default(now())
+  
+  @@unique([type, value])
+  @@index([type])
+  @@index([value])
+  @@map("banned_identifiers")
+}
+
+model ExternalContent {
+  id              String   @id @default(cuid())
+  platform        String   // "bluesky", "atproto", etc.
+  externalId      String   // Original post URI/ID from external platform
+  authorHandle    String   // @username.bsky.social
+  authorName      String?  // Display name
+  authorDid       String?  // Author's DID
+  content         String   @db.Text
+  createdAt       DateTime @default(now())
+  importedAt      DateTime @default(now())
+  
+  // Moderation fields
+  isApproved      Boolean  @default(false)
+  approvedById    String?
+  approvedAt      DateTime?
+  rejectionReason String?  @db.Text
+  
+  // Safety labels from ATProto moderation
+  safetyLabels    String[] @default([]) // Array of label values (e.g., ["spam", "sexual"])
+  hasSafetyIssues Boolean  @default(false) // Quick check flag
+  
+  // Categorization
+  topics          String[] // ["policy", "bipartisan", "civic-engagement"]
+  civilityScore   Int      @default(0) // AI-generated civility score (0-100)
+  
+  // Engagement metrics (from source platform)
+  likeCount       Int      @default(0)
+  replyCount      Int      @default(0)
+  repostCount     Int      @default(0)
+  
+  // Thread context
+  isThread        Boolean  @default(false)
+  threadId        String?  // For grouping related posts
+  parentPostUri   String?  // Original parent post URI
+  
+  // Feed source metadata
+  feedSource      String?  // Which feed this came from (e.g., "timeline", "custom-feed")
+  indexedAt       DateTime? // When Bluesky indexed it
+  
+  approvedBy      User?    @relation(fields: [approvedById], references: [id])
+  
+  @@unique([platform, externalId])
+  @@index([platform])
+  @@index([isApproved])
+  @@index([importedAt])
+  @@index([threadId])
+  @@map("external_content")
+}
+
+// Tracks the state of ATProto feed fetching for cursor-based resume
+model FeedState {
+  id             String   @id @default(cuid())
+  feedName       String   @unique // e.g., "civic-timeline", "bluesky-following"
+  cursor         String?  // Current cursor position for pagination
+  lastFetchedAt  DateTime @default(now())
+  lastPostUri    String?  // URI of the last post fetched (for verification)
+  totalFetched   Int      @default(0) // Total posts fetched through this feed
+  totalApproved  Int      @default(0) // Total posts approved from this feed
+  isActive       Boolean  @default(true) // Whether this feed is actively being polled
+  errorCount     Int      @default(0) // Count of consecutive errors
+  lastError      String?  @db.Text // Last error message
+  
+  updatedAt      DateTime @updatedAt
+  
+  @@map("feed_state")
+}
+
+// User Activity Logging for Retention Analytics
+model UserActivityLog {
+  id            String   @id @default(cuid())
+  userId        String
+  activityType  String   // "login", "page_view", "post_create", "comment_create", "reaction_create", "profile_update", "settings_update"
+  timestamp     DateTime @default(now())
+  
+  // Optional metadata
+  metadata      Json?    // Flexible field for additional context (e.g., page path, content ID, device type)
+  sessionId     String?  // Link to session if available
+  
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([activityType])
+  @@index([timestamp])
+  @@index([userId, timestamp])
+  @@map("user_activity_logs")
+}
