@@ -3,11 +3,12 @@ import { requireAdmin } from '@/lib/admin-auth';
 import { prisma } from '@/lib/db';
 import { Resend } from 'resend';
 
-if (!process.env.RESEND_API_KEY) {
-  throw new Error('RESEND_API_KEY is not set in environment variables');
-}
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+const getResendClient = () => {
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error('RESEND_API_KEY is not set in environment variables');
+  }
+  return new Resend(process.env.RESEND_API_KEY);
+};
 
 /**
  * Temporary Admin Route: Send Welcome Emails to All Verified Users
@@ -27,9 +28,9 @@ export async function POST() {
     // Fetch all verified users
     const users = await prisma.user.findMany({
       where: {
-        emailVerified: { not: null }, // Only users with verified email (DateTime exists)
-        isActive: true, // Only send to active accounts
-        isPermanentlyBanned: false, // Skip banned users
+        emailVerified: { not: null },
+        isActive: true,
+        isPermanentlyBanned: false,
       },
       select: {
         id: true,
@@ -48,13 +49,13 @@ export async function POST() {
       errors: [] as Array<{ email: string; error: string }>,
     };
 
+    const resend = getResendClient();
+
     // Send welcome email to each verified user using bta-welcome template
     for (const user of users) {
       try {
         console.log(`[WELCOME EMAIL] Sending to: ${user.email} (${user.name || 'No name'})`);
 
-        // Use Resend template ID: bta-welcome (production email, not test mode)
-        // This sends using your published Resend dashboard template
         const response = await resend.emails.send({
           from: 'welcome@bridgingtheaisle.com',
           to: user.email,
@@ -62,7 +63,7 @@ export async function POST() {
           template: {
             id: 'bta-welcome',
           },
-        } as any); // Type assertion needed for template property
+        } as any);
 
         console.log(`[WELCOME EMAIL] ✅ Sent to ${user.email} - Email ID: ${response.data?.id || 'Unknown'}`);
         results.successful++;
