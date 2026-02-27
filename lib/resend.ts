@@ -1,11 +1,11 @@
 import { Resend } from 'resend';
 
-if (!process.env.RESEND_API_KEY) {
-  throw new Error('RESEND_API_KEY is not set in environment variables');
-}
-
-// Initialize Resend client
-const resend = new Resend(process.env.RESEND_API_KEY);
+const getResendClient = () => {
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error('RESEND_API_KEY is not set in environment variables');
+  }
+  return new Resend(process.env.RESEND_API_KEY);
+};
 
 /**
  * Send welcome email using Resend template
@@ -13,7 +13,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
  */
 export async function sendWelcomeEmail(email: string) {
   try {
-    const response = await resend.emails.send({
+    const response = await getResendClient().emails.send({
       from: 'Welcome <welcome@bridgingtheaisle.com>',
       to: email,
       subject: 'Welcome to Bridging the Aisle!',
@@ -33,11 +33,10 @@ export async function sendWelcomeEmail(email: string) {
 
 /**
  * Send verification email using inline HTML
- * Note: Resend templates exist in dashboard but inline HTML is more reliable
  */
 export async function sendVerificationEmail(email: string, firstName: string, verificationUrl: string) {
   try {
-    const response = await resend.emails.send({
+    const response = await getResendClient().emails.send({
       from: 'Bridging the Aisle <email_verification@bridgingtheaisle.com>',
       to: email,
       subject: 'Verify Your Email - Bridging the Aisle',
@@ -83,11 +82,10 @@ export async function sendVerificationEmail(email: string, firstName: string, ve
 
 /**
  * Send password reset email using inline HTML
- * Note: Resend templates exist in dashboard but inline HTML is more reliable
  */
 export async function sendPasswordResetEmail(email: string, firstName: string, resetUrl: string) {
   try {
-    const response = await resend.emails.send({
+    const response = await getResendClient().emails.send({
       from: 'Bridging the Aisle <password_reset@bridgingtheaisle.com>',
       to: email,
       subject: 'Reset Your Password - Bridging the Aisle',
