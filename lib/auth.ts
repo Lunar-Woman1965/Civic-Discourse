@@ -9,6 +9,7 @@ import { logActivity } from "./activity-tracker";
 
 export function getAuthOptions(): NextAuthOptions {
   return {
+    secret: process.env.NEXTAUTH_SECRET,
     adapter: PrismaAdapter(prisma),
     providers: [
       CredentialsProvider({
