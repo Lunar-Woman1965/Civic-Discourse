@@ -194,3 +194,5 @@ export function getAuthOptions(): NextAuthOptions {
     },
   };
 }
+
+export const authOptions = getAuthOptions();
