@@ -7,7 +7,6 @@ import bcrypt from "bcryptjs";
 import { prisma } from "./db";
 import { logActivity } from "./activity-tracker";
 
-
 export function getAuthOptions(): NextAuthOptions {
   return {
     secret: process.env.NEXTAUTH_SECRET,
