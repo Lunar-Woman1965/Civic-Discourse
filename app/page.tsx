@@ -87,10 +87,7 @@ export const metadata: Metadata = {
 
 export default async function Home() {
   const user = await getCurrentUser();
-
-  if (user) {
-    redirect("/dashboard");
-  }
-
-  redirect("/login"); // instead of returning <LandingPage />
+if (user?.id) {
+  redirect("/dashboard");
 }
+redirect("/auth/signin")}
