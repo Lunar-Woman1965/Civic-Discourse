@@ -1,78 +1,124 @@
-// app/dashboard/page.tsx
+import { getCurrentUser } from '@/lib/session'
+import { redirect } from 'next/navigation'
+import DashboardLayout from '@/components/dashboard/dashboard-layout'
+import NewsFeed from '@/components/dashboard/news-feed'
+import { prisma } from '@/lib/db'
 
-import { headers } from "next/headers";
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: { postId?: string }
+}) {
+  const user = await getCurrentUser()
 
-export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
-
-function getBaseUrl() {
-  // 1) Prefer your canonical URL
-  const envUrl = process.env.NEXTAUTH_URL?.trim();
-  if (envUrl) return envUrl.replace(/\/+$/, "");
-
-  // 2) Fall back to incoming request headers (works on Railway/proxies)
-  const h = headers();
-  const proto = h.get("x-forwarded-proto") ?? "https";
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-  if (host) return `${proto}://${host}`.replace(/\/+$/, "");
-
-  // 3) Absolute last resort: dev only
-  if (process.env.NODE_ENV === "development") return "http://localhost:3000";
-
-  return null;
-}
-
-async function getDashboardData() {
-  const baseUrl = getBaseUrl();
-  if (!baseUrl) {
-    throw new Error(
-      "Unable to determine base URL. Set NEXTAUTH_URL in Railway or ensure proxy headers are forwarded."
-    );
+  if (!user) {
+    redirect('/auth/signin')
   }
 
-  const url = `${baseUrl}/api/dashboard`;
+  const userDetails = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { isAdmin: true },
+  })
 
-  // Helps you verify what prod is actually trying to reach.
-  console.log(`[dashboard] fetch -> ${url}`);
+  const posts = await prisma.post.findMany({
+    where: {
+      groupId: null,
+      ...(userDetails?.isAdmin
+        ? {}
+        : {
+            OR: [
+              { isApproved: true },
+              { authorId: user.id },
+            ],
+          }),
+    },
+    include: {
+      author: {
+        select: {
+          id: true,
+          name: true,
+          firstName: true,
+          lastName: true,
+          username: true,
+          displayNamePreference: true,
+          profileImage: true,
+          politicalLeaning: true,
+          civilityScore: true,
+          isAdmin: true,
+        },
+      },
+      reactions: {
+        include: {
+          user: {
+            select: { id: true, name: true },
+          },
+        },
+      },
+      comments: {
+        where: {
+          ...(userDetails?.isAdmin
+            ? {}
+            : {
+                OR: [
+                  { isApproved: true },
+                  { authorId: user.id },
+                ],
+              }),
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              name: true,
+              firstName: true,
+              lastName: true,
+              username: true,
+              displayNamePreference: true,
+              profileImage: true,
+              politicalLeaning: true,
+              isAdmin: true,
+            },
+          },
+          reactions: {
+            include: {
+              user: {
+                select: { id: true, name: true },
+              },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      },
+      _count: {
+        select: {
+          comments: true,
+          reactions: true,
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+  })
 
-  const res = await fetch(url, { cache: "no-store" });
+  const groups = await prisma.group.findMany({
+    include: {
+      _count: {
+        select: { members: true, posts: true },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 10,
+  })
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(
-      `Failed to load dashboard data: ${res.status} ${res.statusText}${body ? ` — ${body.slice(0, 200)}` : ""}`
-    );
-  }
-
-  return res.json();
-}
-
-export default async function Page() {
-  try {
-    const data = await getDashboardData();
-
-    return (
-      <main style={{ padding: 16 }}>
-        <h1>Dashboard</h1>
-        <pre>{JSON.stringify(data, null, 2)}</pre>
-      </main>
-    );
-  } catch (err: any) {
-    const msg = err?.message ? String(err.message) : String(err);
-
-    return (
-      <main style={{ padding: 16 }}>
-        <h1>Dashboard</h1>
-        <p style={{ marginTop: 12 }}>
-          Server-side error loading dashboard data.
-        </p>
-        <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-          {msg}
-        </pre>
-        <p style={{ marginTop: 12 }}>
-          Check Railway logs for <code>[dashboard] fetch -&gt;</code> to see the target URL.
-        </p>
-      </main>
-    );
-  }
+  return (
+    <DashboardLayout user={user}>
+      <NewsFeed
+        initialPosts={posts}
+        currentUser={user}
+        groups={groups}
+        highlightedPostId={searchParams.postId}
+      />
+    </DashboardLayout>
+  )
 }
