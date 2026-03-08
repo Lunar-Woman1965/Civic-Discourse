@@ -1,6 +1,10 @@
-import "server-only";
-import { PrismaClient } from "@prisma/client";
+import NextAuth from "next-auth";
+import { getAuthOptions } from "@/lib/auth";
 
+const handler = NextAuth(getAuthOptions());
+
+export const GET = handler;
+export const POST = handler;
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 export const prisma =
