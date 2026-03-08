@@ -1,3 +1,6 @@
+export const metadata = {
+  description: "An independent, nonpartisan platform for civic dialogue. Support is voluntary and keeps the conversation going.",
+};
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
