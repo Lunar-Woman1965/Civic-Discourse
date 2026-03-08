@@ -69,8 +69,8 @@ export default function LandingPage() {
     {
       icon: <MessageCircle className="h-6 w-6" />,
       title: "Civil Discourse",
-      description: "Engage in respectful political discussions with built-in civility scoring"
-    },
+      description: "Engage in respectful political discussion"
+        },
     {
       icon: <Shield className="h-6 w-6" />,
       title: "Fact-Checked Content",
