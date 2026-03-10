@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -7,12 +6,9 @@ import { prisma } from "@/lib/db";
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const user = await prisma.user.findUnique({
@@ -32,25 +28,23 @@ export async function GET(request: NextRequest) {
         politicalLeaning: true,
         civilityScore: true,
         joinedAt: true,
-        isVerified: true,
+        emailVerified: true,
         password: true,
       },
     });
 
     if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Return user data but only indicate if password exists (not the hash itself)
     const { password, ...userWithoutPasswordHash } = user;
-    return NextResponse.json({ 
+
+    return NextResponse.json({
       user: {
         ...userWithoutPasswordHash,
-        password: password ? 'exists' : null, // Just indicate password exists, don't send hash
-      }
+        isVerified: !!user.emailVerified,
+        password: password ? "exists" : null,
+      },
     });
   } catch (error) {
     console.error("Profile fetch error:", error);
@@ -64,23 +58,21 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await request.json();
     const { firstName, lastName, username, bio, politicalLeaning } = body;
 
-    // If username is being updated, check if it's already taken
-    if (username !== undefined && username !== '') {
+    if (username !== undefined && username !== "") {
+      const trimmedUsername = username.trim();
+
       const existingUser = await prisma.user.findFirst({
         where: {
-          username: username,
-          NOT: { id: session.user.id }, // Exclude current user
+          username: trimmedUsername,
+          NOT: { id: session.user.id },
         },
       });
 
@@ -92,14 +84,22 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
+    const trimmedFirstName = firstName?.trim();
+    const trimmedLastName = lastName?.trim();
+    const trimmedUsername = username?.trim();
+    const trimmedBio = bio?.trim();
+
     const updatedUser = await prisma.user.update({
       where: { id: session.user.id },
       data: {
-        firstName: firstName || undefined,
-        lastName: lastName || undefined,
-        username: username === '' ? null : username || undefined, // Allow clearing username
-        name: firstName && lastName ? `${firstName} ${lastName}` : undefined,
-        bio: bio || undefined,
+        firstName: trimmedFirstName || undefined,
+        lastName: trimmedLastName || undefined,
+        username: username === "" ? null : trimmedUsername || undefined,
+        name:
+          trimmedFirstName && trimmedLastName
+            ? `${trimmedFirstName} ${trimmedLastName}`
+            : undefined,
+        bio: trimmedBio || undefined,
         politicalLeaning: politicalLeaning || undefined,
       },
       select: {
@@ -117,18 +117,19 @@ export async function PATCH(request: NextRequest) {
         politicalLeaning: true,
         civilityScore: true,
         joinedAt: true,
-        isVerified: true,
+        emailVerified: true,
         password: true,
       },
     });
 
-    // Return user data but only indicate if password exists (not the hash itself)
     const { password, ...userWithoutPasswordHash } = updatedUser;
-    return NextResponse.json({ 
+
+    return NextResponse.json({
       user: {
         ...userWithoutPasswordHash,
-        password: password ? 'exists' : null,
-      }
+        isVerified: !!updatedUser.emailVerified,
+        password: password ? "exists" : null,
+      },
     });
   } catch (error) {
     console.error("Profile update error:", error);

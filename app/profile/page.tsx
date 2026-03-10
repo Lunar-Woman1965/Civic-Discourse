@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -15,9 +14,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Loader2, Upload, User, Calendar, AlertTriangle, UserX, ArrowLeft, Lock, Sparkles, Link, Trash2 } from "lucide-react";
+import {
+  Loader2,
+  Upload,
+  Calendar,
+  AlertTriangle,
+  UserX,
+  ArrowLeft,
+  Lock,
+  Sparkles,
+  Link,
+  Trash2,
+} from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AvatarCreator from "@/components/avatar-creator";
 import { generateAvatarDataUrl } from "@/lib/avatar-utils";
@@ -32,9 +48,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { signOut } from "next-auth/react";
 import { toast } from "react-hot-toast";
-import { POLITICAL_LEANINGS, getPoliticalLeaningLabel } from "@/lib/political-utils";
+import {
+  POLITICAL_LEANINGS,
+  getPoliticalLeaningLabel,
+} from "@/lib/political-utils";
 
 interface UserProfile {
   id: string;
@@ -51,7 +69,7 @@ interface UserProfile {
   politicalLeaning: string | null;
   civilityScore: number;
   joinedAt: string;
-  isVerified: boolean;
+  emailVerified?: string | null;
   password: string | null;
 }
 
@@ -97,6 +115,7 @@ export default function ProfilePage() {
   const fetchProfile = async () => {
     try {
       const response = await fetch("/api/profile");
+
       if (response.ok) {
         const data = await response.json();
         setProfile(data.user);
@@ -164,19 +183,19 @@ export default function ProfilePage() {
     setIsUploadingPhoto(true);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
+      const uploadFormData = new FormData();
+      uploadFormData.append("file", file);
 
       const response = await fetch("/api/profile/upload-photo", {
         method: "POST",
-        body: formData,
+        body: uploadFormData,
       });
 
       if (response.ok) {
         const data = await response.json();
         setProfile(data.user);
         toast.success("Profile photo updated successfully!");
-        router.refresh(); // Refresh all server-side data to show updated photo everywhere
+        router.refresh();
       } else {
         const error = await response.json();
         toast.error(error.error || "Failed to upload photo");
@@ -191,7 +210,6 @@ export default function ProfilePage() {
 
   const getProfilePhotoUrl = (path: string | null) => {
     if (!path) return null;
-    // Return API route that will handle S3 signed URL
     return `/api/profile/photo/${encodeURIComponent(path)}`;
   };
 
@@ -199,6 +217,7 @@ export default function ProfilePage() {
     if (profile?.useAvatar && profile.avatarStyle && profile.avatarSeed) {
       return generateAvatarDataUrl(profile.avatarStyle, profile.avatarSeed);
     }
+
     return getProfilePhotoUrl(profile?.profileImage || null) || undefined;
   };
 
@@ -216,7 +235,7 @@ export default function ProfilePage() {
         const data = await response.json();
         setProfile(data.user);
         toast.success("Avatar updated successfully!");
-        router.refresh(); // Refresh all server-side data to show updated avatar everywhere
+        router.refresh();
       } else {
         const error = await response.json();
         toast.error(error.error || "Failed to update avatar");
@@ -229,6 +248,7 @@ export default function ProfilePage() {
 
   const handleRemovePhoto = async () => {
     setIsRemovingPhoto(true);
+
     try {
       const response = await fetch("/api/profile/remove-photo", {
         method: "POST",
@@ -238,7 +258,7 @@ export default function ProfilePage() {
         const data = await response.json();
         setProfile(data.user);
         toast.success("Profile photo removed successfully!");
-        router.refresh(); // Refresh all server-side data
+        router.refresh();
       } else {
         const error = await response.json();
         toast.error(error.error || "Failed to remove photo");
@@ -253,6 +273,7 @@ export default function ProfilePage() {
 
   const handleRemoveAvatar = async () => {
     setIsRemovingAvatar(true);
+
     try {
       const response = await fetch("/api/profile/remove-avatar", {
         method: "POST",
@@ -262,7 +283,7 @@ export default function ProfilePage() {
         const data = await response.json();
         setProfile(data.user);
         toast.success("Avatar removed successfully!");
-        router.refresh(); // Refresh all server-side data
+        router.refresh();
       } else {
         const error = await response.json();
         toast.error(error.error || "Failed to remove avatar");
@@ -277,6 +298,7 @@ export default function ProfilePage() {
 
   const handleDeactivate = async () => {
     setIsDeactivating(true);
+
     try {
       const response = await fetch("/api/profile/deactivate", {
         method: "POST",
@@ -284,7 +306,6 @@ export default function ProfilePage() {
 
       if (response.ok) {
         toast.success("Account deactivated successfully");
-        // Sign out the user
         await signOut({ callbackUrl: "/auth/signin" });
       } else {
         const error = await response.json();
@@ -299,6 +320,7 @@ export default function ProfilePage() {
 
   const handleDeleteAccount = async () => {
     setIsDeleting(true);
+
     try {
       const response = await fetch("/api/profile/delete", {
         method: "DELETE",
@@ -306,7 +328,6 @@ export default function ProfilePage() {
 
       if (response.ok) {
         toast.success("Account deleted successfully");
-        // Sign out the user
         await signOut({ callbackUrl: "/auth/signin" });
       } else {
         const error = await response.json();
@@ -321,7 +342,7 @@ export default function ProfilePage() {
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       toast.error("New passwords do not match");
       return;
@@ -392,7 +413,7 @@ export default function ProfilePage() {
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Dashboard
         </Button>
-        
+
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold">My Profile</h1>
           <div className="flex gap-2">
@@ -414,7 +435,6 @@ export default function ProfilePage() {
         </div>
 
         <div className="grid gap-6">
-          {/* Profile Photo Section */}
           <Card>
             <CardHeader>
               <CardTitle>Profile Photo</CardTitle>
@@ -424,7 +444,6 @@ export default function ProfilePage() {
             </CardHeader>
             <CardContent>
               <div className="flex flex-col items-center gap-6">
-                {/* Current Avatar Display */}
                 <div className="relative">
                   <Avatar className="h-32 w-32">
                     <AvatarImage
@@ -443,8 +462,10 @@ export default function ProfilePage() {
                   )}
                 </div>
 
-                {/* Tabs for Upload or Create */}
-                <Tabs defaultValue={profile.useAvatar ? "avatar" : "upload"} className="w-full">
+                <Tabs
+                  defaultValue={profile.useAvatar ? "avatar" : "upload"}
+                  className="w-full"
+                >
                   <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="upload">
                       <Upload className="h-4 w-4 mr-2" />
@@ -455,7 +476,7 @@ export default function ProfilePage() {
                       Create Avatar
                     </TabsTrigger>
                   </TabsList>
-                  
+
                   <TabsContent value="upload" className="mt-4">
                     <div className="flex flex-col items-center gap-4">
                       <input
@@ -469,14 +490,16 @@ export default function ProfilePage() {
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={() => document.getElementById("photo-upload")?.click()}
+                        onClick={() =>
+                          document.getElementById("photo-upload")?.click()
+                        }
                         disabled={isUploadingPhoto}
                         className="w-full"
                       >
                         <Upload className="h-4 w-4 mr-2" />
                         {isUploadingPhoto ? "Uploading..." : "Choose Photo"}
                       </Button>
-                      {profile?.profileImage && !profile?.useAvatar && (
+                      {profile.profileImage && !profile.useAvatar && (
                         <Button
                           type="button"
                           variant="outline"
@@ -493,14 +516,14 @@ export default function ProfilePage() {
                       </p>
                     </div>
                   </TabsContent>
-                  
+
                   <TabsContent value="avatar" className="mt-4">
                     <AvatarCreator
                       onAvatarCreate={handleAvatarCreate}
                       initialStyle={profile.avatarStyle || undefined}
                       initialSeed={profile.avatarSeed || undefined}
                     />
-                    {profile?.useAvatar && profile?.avatarStyle && (
+                    {profile.useAvatar && profile.avatarStyle && (
                       <div className="mt-4">
                         <Button
                           type="button"
@@ -520,7 +543,6 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-          {/* Profile Information */}
           <Card>
             <CardHeader>
               <CardTitle>Profile Information</CardTitle>
@@ -581,7 +603,8 @@ export default function ProfilePage() {
                     placeholder="Choose a username for privacy"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Optional. Use a username instead of your real name for privacy. Must be unique.
+                    Optional. Use a username instead of your real name for
+                    privacy. Must be unique.
                   </p>
                 </div>
 
@@ -638,7 +661,6 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-          {/* Change Password Section */}
           {profile.password && (
             <Card>
               <CardHeader>
@@ -659,7 +681,10 @@ export default function ProfilePage() {
                       type="password"
                       value={passwordData.currentPassword}
                       onChange={(e) =>
-                        setPasswordData({ ...passwordData, currentPassword: e.target.value })
+                        setPasswordData({
+                          ...passwordData,
+                          currentPassword: e.target.value,
+                        })
                       }
                       placeholder="Enter your current password"
                       required
@@ -673,7 +698,10 @@ export default function ProfilePage() {
                       type="password"
                       value={passwordData.newPassword}
                       onChange={(e) =>
-                        setPasswordData({ ...passwordData, newPassword: e.target.value })
+                        setPasswordData({
+                          ...passwordData,
+                          newPassword: e.target.value,
+                        })
                       }
                       placeholder="Enter your new password"
                       required
@@ -691,7 +719,10 @@ export default function ProfilePage() {
                       type="password"
                       value={passwordData.confirmPassword}
                       onChange={(e) =>
-                        setPasswordData({ ...passwordData, confirmPassword: e.target.value })
+                        setPasswordData({
+                          ...passwordData,
+                          confirmPassword: e.target.value,
+                        })
                       }
                       placeholder="Confirm your new password"
                       required
@@ -699,7 +730,11 @@ export default function ProfilePage() {
                     />
                   </div>
 
-                  <Button type="submit" disabled={isChangingPassword} className="w-full">
+                  <Button
+                    type="submit"
+                    disabled={isChangingPassword}
+                    className="w-full"
+                  >
                     {isChangingPassword ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -717,7 +752,6 @@ export default function ProfilePage() {
             </Card>
           )}
 
-          {/* Account Stats */}
           <Card>
             <CardHeader>
               <CardTitle>Account Information</CardTitle>
@@ -750,7 +784,6 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-          {/* Account Actions */}
           <Card className="border-red-200">
             <CardHeader>
               <CardTitle className="text-red-600 flex items-center gap-2">
@@ -762,49 +795,64 @@ export default function ProfilePage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Deactivate Account */}
               <div className="flex items-center justify-between p-4 border border-orange-200 rounded-lg bg-orange-50">
                 <div className="flex-1">
-                  <h4 className="font-medium text-orange-900">Deactivate Account</h4>
+                  <h4 className="font-medium text-orange-900">
+                    Deactivate Account
+                  </h4>
                   <p className="text-sm text-orange-700 mt-1">
-                    Temporarily disable your account. You can reactivate it later by signing in again.
+                    Temporarily disable your account. You can reactivate it
+                    later by signing in again.
                   </p>
                 </div>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="outline" className="border-orange-600 text-orange-600 hover:bg-orange-100">
+                    <Button
+                      variant="outline"
+                      className="border-orange-600 text-orange-600 hover:bg-orange-100"
+                    >
                       <UserX className="h-4 w-4 mr-2" />
                       Deactivate
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Deactivate Your Account?</AlertDialogTitle>
+                      <AlertDialogTitle>
+                        Deactivate Your Account?
+                      </AlertDialogTitle>
                       <AlertDialogDescription>
-                        Your account will be temporarily deactivated. You can reactivate it at any time by signing in again.
-                        Your posts, comments, and profile information will be preserved.
+                        Your account will be temporarily deactivated. You can
+                        reactivate it at any time by signing in again. Your
+                        posts, comments, and profile information will be
+                        preserved.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel disabled={isDeactivating}>Cancel</AlertDialogCancel>
+                      <AlertDialogCancel disabled={isDeactivating}>
+                        Cancel
+                      </AlertDialogCancel>
                       <AlertDialogAction
                         onClick={handleDeactivate}
                         disabled={isDeactivating}
                         className="bg-orange-600 hover:bg-orange-700"
                       >
-                        {isDeactivating ? "Deactivating..." : "Deactivate Account"}
+                        {isDeactivating
+                          ? "Deactivating..."
+                          : "Deactivate Account"}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
               </div>
 
-              {/* Delete Account */}
               <div className="flex items-center justify-between p-4 border border-red-200 rounded-lg bg-red-50">
                 <div className="flex-1">
-                  <h4 className="font-medium text-red-900">Delete Account Permanently</h4>
+                  <h4 className="font-medium text-red-900">
+                    Delete Account Permanently
+                  </h4>
                   <p className="text-sm text-red-700 mt-1">
-                    Permanently delete your account and all associated data. This action cannot be undone.
+                    Permanently delete your account and all associated data.
+                    This action cannot be undone.
                   </p>
                 </div>
                 <AlertDialog>
@@ -821,7 +869,9 @@ export default function ProfilePage() {
                       </AlertDialogTitle>
                       <AlertDialogDescription>
                         <div className="space-y-2">
-                          <p className="font-semibold text-red-700">This action cannot be undone!</p>
+                          <p className="font-semibold text-red-700">
+                            This action cannot be undone!
+                          </p>
                           <p>All of your data will be permanently deleted, including:</p>
                           <ul className="list-disc list-inside space-y-1 text-sm">
                             <li>Your profile and personal information</li>
@@ -834,7 +884,9 @@ export default function ProfilePage() {
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                      <AlertDialogCancel disabled={isDeleting}>
+                        Cancel
+                      </AlertDialogCancel>
                       <AlertDialogAction
                         onClick={handleDeleteAccount}
                         disabled={isDeleting}

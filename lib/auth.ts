@@ -7,6 +7,44 @@ import bcrypt from "bcryptjs";
 import { prisma } from "./db";
 import { logActivity } from "./activity-tracker";
 
+function normalizeEmail(email: string) {
+  return email.toLowerCase().trim();
+}
+
+async function validateUserAccess(user: {
+  id: string;
+  email: string;
+  isActive: boolean;
+  deletedAt: Date | null;
+  isSuspended: boolean;
+  suspendedUntil: Date | null;
+  isPermanentlyBanned: boolean;
+}) {
+  if (!user.isActive || user.deletedAt) {
+    console.log("Account is deactivated. Email:", user.email);
+    throw new Error("ACCOUNT_DEACTIVATED");
+  }
+
+  if (user.isSuspended) {
+    if (user.suspendedUntil && new Date() < user.suspendedUntil) {
+      console.log("Account is suspended until:", user.suspendedUntil);
+      throw new Error("ACCOUNT_SUSPENDED");
+    }
+
+    if (user.suspendedUntil && new Date() >= user.suspendedUntil) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { isSuspended: false, suspendedUntil: null },
+      });
+    }
+  }
+
+  if (user.isPermanentlyBanned) {
+    console.log("Account is permanently banned:", user.email);
+    throw new Error("ACCOUNT_BANNED");
+  }
+}
+
 export function getAuthOptions(): NextAuthOptions {
   return {
     secret: process.env.NEXTAUTH_SECRET,
@@ -24,9 +62,11 @@ export function getAuthOptions(): NextAuthOptions {
             return null;
           }
 
+          const normalizedEmail = normalizeEmail(credentials.email);
+
           const user = await prisma.user.findUnique({
             where: {
-              email: credentials.email.toLowerCase().trim(),
+              email: normalizedEmail,
             },
           });
 
@@ -35,27 +75,7 @@ export function getAuthOptions(): NextAuthOptions {
             return null;
           }
 
-          if (!user.isActive || user.deletedAt) {
-            console.log("Account is deactivated. Email:", user.email);
-            throw new Error("ACCOUNT_DEACTIVATED");
-          }
-
-          if (user.isSuspended) {
-            if (user.suspendedUntil && new Date() < user.suspendedUntil) {
-              console.log("Account is suspended until:", user.suspendedUntil);
-              throw new Error("ACCOUNT_SUSPENDED");
-            } else if (user.suspendedUntil && new Date() >= user.suspendedUntil) {
-              await prisma.user.update({
-                where: { id: user.id },
-                data: { isSuspended: false, suspendedUntil: null },
-              });
-            }
-          }
-
-          if (user.isPermanentlyBanned) {
-            console.log("Account is permanently banned:", user.email);
-            throw new Error("ACCOUNT_BANNED");
-          }
+          await validateUserAccess(user);
 
           if (!user.emailVerified) {
             console.log("Email not verified:", user.email);
@@ -136,29 +156,14 @@ export function getAuthOptions(): NextAuthOptions {
       },
       async signIn({ user, account, profile }) {
         if (account?.provider === "google") {
+          const normalizedEmail = normalizeEmail(user.email!);
+
           const existingUser = await prisma.user.findUnique({
-            where: { email: user.email! },
+            where: { email: normalizedEmail },
           });
 
           if (existingUser) {
-            if (!existingUser.isActive || existingUser.deletedAt) {
-              throw new Error("ACCOUNT_DEACTIVATED");
-            }
-
-            if (existingUser.isSuspended) {
-              if (existingUser.suspendedUntil && new Date() < existingUser.suspendedUntil) {
-                throw new Error("ACCOUNT_SUSPENDED");
-              } else if (existingUser.suspendedUntil && new Date() >= existingUser.suspendedUntil) {
-                await prisma.user.update({
-                  where: { id: existingUser.id },
-                  data: { isSuspended: false, suspendedUntil: null },
-                });
-              }
-            }
-
-            if (existingUser.isPermanentlyBanned) {
-              throw new Error("ACCOUNT_BANNED");
-            }
+            await validateUserAccess(existingUser);
 
             await prisma.user.update({
               where: { id: existingUser.id },
@@ -173,11 +178,10 @@ export function getAuthOptions(): NextAuthOptions {
                 email: existingUser.email,
               },
             }).catch((err) => console.error("Failed to log login activity:", err));
-
           } else {
             await prisma.user.create({
               data: {
-                email: user.email!,
+                email: normalizedEmail,
                 name: user.name,
                 firstName: (profile as any)?.given_name || user.name?.split(" ")[0],
                 lastName: (profile as any)?.family_name || user.name?.split(" ")[1],
@@ -189,6 +193,7 @@ export function getAuthOptions(): NextAuthOptions {
             });
           }
         }
+
         return true;
       },
     },

@@ -1,22 +1,23 @@
-import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
+import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
 async function resetPassword(email: string, newPassword: string) {
   try {
+    const normalizedEmail = email.toLowerCase().trim();
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    
+
     const user = await prisma.user.update({
-      where: { email },
-      data: { password: hashedPassword }
+      where: { email: normalizedEmail },
+      data: { password: hashedPassword },
     });
 
-    console.log(`✅ Password reset successful for ${email}`);
+    console.log(`✅ Password reset successful for ${normalizedEmail}`);
     console.log(`   New password: ${newPassword}`);
-    console.log(`   User name: ${user.name || 'N/A'}`);
+    console.log(`   User name: ${user.name || "N/A"}`);
   } catch (error) {
-    console.error('❌ Error resetting password:', error);
+    console.error("❌ Error resetting password:", error);
   } finally {
     await prisma.$disconnect();
   }
@@ -26,7 +27,7 @@ const email = process.argv[2];
 const password = process.argv[3];
 
 if (!email || !password) {
-  console.error('Usage: tsx reset-prod-password.ts <email> <password>');
+  console.error("Usage: tsx reset-prod-password.ts <email> <password>");
   process.exit(1);
 }
 

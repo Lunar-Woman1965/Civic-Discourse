@@ -1,13 +1,13 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  const email = 'lmhansen26062@ymail.com';
-  
+  const email = "lmhansen26062@ymail.com";
+
   const user = await prisma.user.update({
-    where: { email },
-    data: { isAdmin: true }
+    where: { email: email.toLowerCase().trim() },
+    data: { isAdmin: true },
   });
 
   console.log(`✅ Successfully made ${user.email} (${user.name}) an admin!`);
