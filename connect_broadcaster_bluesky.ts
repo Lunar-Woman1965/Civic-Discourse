@@ -8,29 +8,40 @@ dotenv.config();
 
 const prisma = new PrismaClient();
 
-// Encryption utilities (must match bluesky-token-encryption.ts)
-const ENCRYPTION_KEY = process.env.BLUESKY_TOKEN_ENCRYPTION_KEY || 'default-key-please-change-in-production-32chars!!';
+// Encryption utilities (matches bluesky-token-encryption.ts exactly)
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
-const AUTH_TAG_LENGTH = 16;
+const KEY_LENGTH = 32;
+const ITERATIONS = 100000;
 
-function encryptToken(text: string): string {
+function getEncryptionKey(): Buffer {
+  const secret = process.env.NEXTAUTH_SECRET;
+  if (!secret) {
+    throw new Error('NEXTAUTH_SECRET is not defined in environment variables');
+  }
+  const salt = crypto.createHash('sha256').update(secret).digest();
+  return crypto.pbkdf2Sync(secret, salt, ITERATIONS, KEY_LENGTH, 'sha256');
+}
+
+function encryptToken(token: string): string {
+  if (!token) {
+    throw new Error('Token cannot be empty');
+  }
+  const key = getEncryptionKey();
   const iv = crypto.randomBytes(IV_LENGTH);
-  const key = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-  
-  let encrypted = cipher.update(text, 'utf8', 'hex');
+
+  let encrypted = cipher.update(token, 'utf8', 'hex');
   encrypted += cipher.final('hex');
-  
-  const authTag = cipher.getAuthTag();
-  
-  return iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted;
+  const tag = cipher.getAuthTag();
+
+  return `${iv.toString('hex')}:${encrypted}:${tag.toString('hex')}`;
 }
 
 async function connectBroadcasterToBluesky() {
   const broadcasterEmail = 'bta-social.sharing@bridgingtheaisle.com';
-  const identifier = 'bta-broadcast.bsky.social';  // Correct Bluesky handle
-  const appPassword = 'twvf-krpr-ctrd-omwe';  // Latest app password
+  const identifier = 'bta-social.sharing@bridgingtheaisle.com';
+  const appPassword = 'p5bk-wc34-wxjr-xvxd';  // Latest app password
   
   console.log('🔍 Finding platform broadcaster account...');
   
@@ -83,7 +94,7 @@ async function connectBroadcasterToBluesky() {
   console.log('   Handle:', handle);
   console.log('   DID:', did);
   
-  // Step 3: Encrypt tokens
+  // Step 3: Encrypt tokens using same method as bluesky-token-encryption.ts
   console.log('\n🔒 Encrypting tokens...');
   const encryptedAccessToken = encryptToken(accessToken);
   const encryptedRefreshToken = encryptToken(refreshToken);

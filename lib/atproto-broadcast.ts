@@ -71,20 +71,22 @@ export async function getPlatformBroadcasterAgent(): Promise<{
       };
     }
 
-    // Decrypt the stored access token
-    const accessToken = decryptToken(broadcasterAccount.blueskyEncryptedToken);
+    /// Login fresh using app password from environment
+const agent = new BskyAgent({ service: 'https://bsky.social' });
+const appPassword = process.env.BLUESKY_APP_PASSWORD;
 
-    // Create agent with stored token
-    const agent = new BskyAgent({ service: 'https://bsky.social' });
+if (!appPassword) {
+  return {
+    agent,
+    handle: '',
+    error: 'BLUESKY_APP_PASSWORD not configured in environment variables.',
+  };
+}
 
-    // Resume session with stored token
-    await agent.resumeSession({
-      accessJwt: accessToken,
-      refreshJwt: '', // Not using refresh token
-      did: broadcasterAccount.atprotoDid || '',
-      handle: broadcasterAccount.atprotoHandle || '',
-      active: true,
-    });
+await agent.login({
+  identifier: PLATFORM_BROADCASTER_EMAIL,
+  password: appPassword,
+});
 
     // Cache the agent
     agentCache.set(cacheKey, {
