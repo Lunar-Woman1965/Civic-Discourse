@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -155,6 +154,10 @@ export function FederatedContentSidebar() {
 
   useEffect(() => {
     fetchContent();
+    // Poll for new content every 10 minutes (600,000ms)
+    // Using 10 minutes to avoid hitting Bluesky public API rate limits
+    const interval = setInterval(() => fetchContent(), 10 * 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
   const getTopicColor = (topic: string): string => {
