@@ -30,7 +30,7 @@ function encryptToken(text: string): string {
 async function connectBroadcasterToBluesky() {
   const broadcasterEmail = 'bta-social.sharing@bridgingtheaisle.com';
   const identifier = 'bta-broadcast.bsky.social';  // Correct Bluesky handle
-  const appPassword = '7shc-yibm-3zsc-3esn';  // Latest app password
+  const appPassword = 'twvf-krpr-ctrd-omwe';  // Latest app password
   
   console.log('🔍 Finding platform broadcaster account...');
   
