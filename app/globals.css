@@ -82,3 +82,8 @@
     @apply bg-background text-foreground;
   }
 }
+/* BMAC Widget Override */
+#bmc-wbtn {
+  opacity: 1 !important;
+  pointer-events: all !important;
+}
