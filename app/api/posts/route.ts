@@ -160,6 +160,8 @@ export async function POST(request: NextRequest) {
             displayNamePreference: true,
             profileImage: true,
             politicalLeaning: true,
+            isAdmin: true,
+            isFounder: true,
             civilityScore: true
           }
         },
@@ -171,7 +173,10 @@ export async function POST(request: NextRequest) {
             lastName: true,
             username: true,
             displayNamePreference: true,
-            politicalLeaning: true
+            politicalLeaning: true,
+            isAdmin: true,
+            isFounder: true
+
           }
         },
         reactions: {
@@ -192,7 +197,9 @@ export async function POST(request: NextRequest) {
                 username: true,
                 displayNamePreference: true,
                 profileImage: true,
-                politicalLeaning: true
+                politicalLeaning: true,
+                isAdmin: true,
+                isFounder: true,
               }
             },
             reactions: {
@@ -290,7 +297,7 @@ export async function GET(request: NextRequest) {
     // Check if user is admin
     const currentUser = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { isAdmin: true }
+      select: { isAdmin: true, isFounder: true }
     })
 
     // Build the where clause based on filter
@@ -342,6 +349,8 @@ export async function GET(request: NextRequest) {
             displayNamePreference: true,
             profileImage: true,
             politicalLeaning: true,
+            isAdmin: true,
+            isFounder: true,
             civilityScore: true
           }
         },
@@ -374,7 +383,9 @@ export async function GET(request: NextRequest) {
                 username: true,
                 displayNamePreference: true,
                 profileImage: true,
-                politicalLeaning: true
+                politicalLeaning: true,
+                isAdmin: true,
+                isFounder: true,
               }
             },
             reactions: {
