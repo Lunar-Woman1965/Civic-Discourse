@@ -356,21 +356,28 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
                     <p className="font-medium text-gray-900">
                       {getDisplayName(currentPost?.author)}
                     </p>
-                    {currentPost?.author?.isAdmin && (
-                      <Badge 
-                        variant="secondary" 
-                        className={`text-xs font-semibold ${
-                          currentPost?.author?.name?.includes('Platform Founder')
-                            ? 'bg-amber-100 text-amber-900 border-amber-300'
-                            : 'bg-blue-100 text-blue-800 border-blue-200'
-                        }`}
-                      >
-                        {currentPost?.author?.name?.includes('Platform Founder') 
-                          ? '👑 Platform Founder' 
-                          : '🛡️ Moderator'
-                        }
-                      </Badge>
-                    )}
+{currentPost?.author?.isAdmin && (
+                      currentPost?.author?.isFounder ? (
+                        <Badge
+                          variant="secondary"
+                          className="text-xs font-semibold border"
+                          style={{
+                            background: 'linear-gradient(135deg, #CFD8DD, #D5D7EA, #CFD3D6)',
+                            color: '#8FA1B5',
+                            borderColor: '#CFD3D6',
+                          }}
+                        >
+                          Founder
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="secondary"
+                          className="text-xs font-semibold bg-blue-100 text-blue-800 border-blue-200"
+                        >
+                          🛡️ Moderator
+                        </Badge>
+                      )
+                    )}  
                     {currentPost?.author?.politicalLeaning && (
                       <Badge variant="secondary" className={`text-xs ${getPoliticalIdentifierColor(currentPost.author.politicalLeaning)}`}>
                         {getPoliticalIdentifierLabel(currentPost.author.politicalLeaning)}
@@ -709,20 +716,27 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
                                 <span className="font-medium text-sm">
                                   {getDisplayName(comment?.author)}
                                 </span>
-                                {comment?.author?.isAdmin && (
-                                  <Badge 
-                                    variant="secondary" 
-                                    className={`text-xs font-semibold ${
-                                      comment?.author?.name?.includes('Platform Founder')
-                                        ? 'bg-amber-100 text-amber-900 border-amber-300'
-                                        : 'bg-blue-100 text-blue-800 border-blue-200'
-                                    }`}
-                                  >
-                                    {comment?.author?.name?.includes('Platform Founder') 
-                                      ? '👑 Platform Founder' 
-                                      : '🛡️ Moderator'
-                                    }
-                                  </Badge>
+ {comment?.author?.isAdmin && (
+                                  comment?.author?.isFounder ? (
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-xs font-semibold border"
+                                      style={{
+                                        background: 'linear-gradient(135deg, #CFD8DD, #D5D7EA, #CFD3D6)',
+                                        color: '#8FA1B5',
+                                        borderColor: '#CFD3D6',
+                                      }}
+                                    >
+                                      Founder
+                                    </Badge>
+                                  ) : (
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-xs font-semibold bg-blue-100 text-blue-800 border-blue-200"
+                                    >
+                                      🛡️ Moderator
+                                    </Badge>
+                                  )
                                 )}
                                 {comment?.author?.politicalLeaning && (
                                   <Badge variant="secondary" className={`text-xs ${getPoliticalIdentifierColor(comment.author.politicalLeaning)}`}>
@@ -848,6 +862,20 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
                   </div>
                 )
               })}
+          </div>
+
+       {/* Support BTA Prompt */}
+            <div className="pt-3 border-t border-gray-100 text-center">
+              <p className="text-xs text-gray-400">
+                Enjoying the conversation?{' '}
+                <a   
+                 href="/support"
+                  className="hover:underline font-medium"
+                  style={{ color: '#8FA1B5' }}
+                >
+                  Support BTA →
+                </a>
+              </p>
             </div>
           </motion.div>
         )}
