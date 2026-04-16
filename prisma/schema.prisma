@@ -82,6 +82,7 @@ model User {
 
   role                UserRole @default(USER)
   isAdmin             Boolean  @default(false)
+  isFounder           Boolean  @default(false)
   isActive            Boolean  @default(true)
   isSuspended         Boolean  @default(false)
   suspendedUntil      DateTime?
