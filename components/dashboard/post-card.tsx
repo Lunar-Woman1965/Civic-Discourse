@@ -91,7 +91,6 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
   const [quotedAuthorId, setQuotedAuthorId] = useState<string | null>(null)
   const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(null)
 
-  // Auto-expand comments when post is highlighted (e.g., from notification)
   useEffect(() => {
     if (isHighlighted) {
       setShowComments(true)
@@ -119,23 +118,19 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
       })
 
       if (response.ok) {
-        // Update reactions optimistically
         const existingReaction = reactions?.find((r: any) => 
           r?.userId === currentUser?.id && r?.postId === post?.id
         )
 
         if (existingReaction) {
           if (existingReaction.type === reactionType) {
-            // Remove reaction
             setReactions(reactions?.filter((r: any) => r?.id !== existingReaction.id))
           } else {
-            // Update reaction type
             setReactions(reactions?.map((r: any) => 
               r?.id === existingReaction.id ? { ...r, type: reactionType } : r
             ))
           }
         } else {
-          // Add new reaction
           const newReaction = {
             id: Date.now().toString(),
             type: reactionType,
@@ -188,7 +183,6 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
   }
 
   const handleQuotePost = () => {
-    // Select the entire post content for quoting
     const selection = window.getSelection()
     const selectedText = selection?.toString().trim()
     
@@ -196,7 +190,6 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
       setQuotedText(selectedText)
       setQuotedAuthorId(currentPost?.authorId)
     } else {
-      // If no text selected, quote a portion of the post
       const content = currentPost?.content || ''
       setQuotedText(content.substring(0, 200))
       setQuotedAuthorId(currentPost?.authorId)
@@ -205,7 +198,6 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
   }
 
   const handleQuoteComment = (comment: any) => {
-    // Select text if available, otherwise use comment content
     const selection = window.getSelection()
     const selectedText = selection?.toString().trim()
     
@@ -236,11 +228,9 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
       if (response.ok) {
         toast.success('Post deleted successfully!')
         setShowDeleteDialog(false)
-        // Call the onDelete callback if provided
         if (onDelete) {
           onDelete(post?.id)
         }
-        // Optionally refresh the page
         window.location.reload()
       } else {
         const error = await response.json()
@@ -299,7 +289,6 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
 
       if (response.ok) {
         const updatedComment = await response.json()
-        // Update the comment in the comments list
         setComments(comments?.map((c: any) => 
           c?.id === commentId ? updatedComment : c
         ))
@@ -356,28 +345,30 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
                     <p className="font-medium text-gray-900">
                       {getDisplayName(currentPost?.author)}
                     </p>
-{currentPost?.author?.isAdmin && (
-                      currentPost?.author?.isFounder ? (
-                        <Badge
-                          variant="secondary"
-                          className="text-xs font-semibold border"
-                          style={{
-                            background: 'linear-gradient(135deg, #CFD8DD, #D5D7EA, #CFD3D6)',
-                            color: '#8FA1B5',
-                            borderColor: '#CFD3D6',
-                          }}
-                        >
-                          Founder
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant="secondary"
-                          className="text-xs font-semibold bg-blue-100 text-blue-800 border-blue-200"
-                        >
-                          🛡️ Moderator
-                        </Badge>
-                      )
-                    )}  
+                    {currentPost?.author?.isAdmin && (
+                      <>
+                        {currentPost?.author?.isFounder ? (
+                          <Badge
+                            variant="secondary"
+                            className="text-xs font-semibold border"
+                            style={{
+                              background: 'linear-gradient(135deg, #CFD8DD, #D5D7EA, #CFD3D6)',
+                              color: '#8FA1B5',
+                              borderColor: '#CFD3D6',
+                            }}
+                          >
+                            Founder
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="secondary"
+                            className="text-xs font-semibold bg-blue-100 text-blue-800 border-blue-200"
+                          >
+                            🛡️ Moderator
+                          </Badge>
+                        )}
+                      </>
+                    )}
                     {currentPost?.author?.politicalLeaning && (
                       <Badge variant="secondary" className={`text-xs ${getPoliticalIdentifierColor(currentPost.author.politicalLeaning)}`}>
                         {getPoliticalIdentifierLabel(currentPost.author.politicalLeaning)}
@@ -460,7 +451,6 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Quote Display (if post is quoting something) */}
         {currentPost?.quotedText && (
           <QuoteDisplay 
             quotedText={currentPost.quotedText}
@@ -468,12 +458,10 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
           />
         )}
 
-        {/* Post Content */}
         <div className="prose prose-sm max-w-none">
           <p className="text-gray-900 whitespace-pre-wrap">{currentPost?.content}</p>
         </div>
 
-        {/* Post Image */}
         {currentPost?.imageUrl && (
           <div className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden">
             <Image
@@ -486,7 +474,6 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
           </div>
         )}
 
-        {/* Source Citation */}
         {currentPost?.sourceCitation && (
           <div className="p-3 bg-turquoise-50 rounded-lg border-l-4 border-turquoise-500">
             <div className="flex items-center space-x-2">
@@ -504,7 +491,6 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
           </div>
         )}
 
-        {/* Political Tags */}
         {currentPost?.politicalTags?.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {currentPost.politicalTags.map((tag: string, index: number) => (
@@ -515,7 +501,6 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
           </div>
         )}
 
-        {/* Reaction Buttons */}
         <div className="flex items-center justify-between pt-3 border-t">
           <TooltipProvider>
             <div className="flex items-center space-x-2">
@@ -593,7 +578,6 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
           </div>
         </div>
 
-        {/* Bluesky Integration Controls */}
         {currentUser && (
           <div className="border-t pt-3 mt-3">
             <BlueskyControls
@@ -609,18 +593,15 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
               atprotoReplyCount={currentPost?.atprotoReplyCount}
               atprotoEngagementSyncedAt={currentPost?.atprotoEngagementSyncedAt}
               onBroadcastSuccess={() => {
-                // Refresh post data after broadcast
                 window.location.reload()
               }}
               onSyncSuccess={() => {
-                // Refresh post data after sync
                 window.location.reload()
               }}
             />
           </div>
         )}
 
-        {/* Comments Section */}
         {showComments && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
@@ -628,7 +609,6 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
             transition={{ duration: 0.3 }}
             className="border-t pt-4 space-y-4"
           >
-            {/* Add Comment Form */}
             <form onSubmit={handleComment} className="flex space-x-3">
               <Avatar className="h-8 w-8">
                 <AvatarImage src={getImageUrl(currentUser?.profileImage) || getImageUrl(currentUser?.image)} />
@@ -637,7 +617,6 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 space-y-2">
-                {/* Show quote preview if quoting */}
                 {quotedText && (
                   <div className="relative">
                     <QuoteDisplay 
@@ -678,7 +657,6 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
               </div>
             </form>
 
-            {/* Comments List */}
             <div className="space-y-4">
               {comments?.map((comment: any) => {
                 const isEditingThisComment = editingCommentId === comment?.id
@@ -716,27 +694,29 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
                                 <span className="font-medium text-sm">
                                   {getDisplayName(comment?.author)}
                                 </span>
- {comment?.author?.isAdmin && (
-                                  comment?.author?.isFounder ? (
-                                    <Badge
-                                      variant="secondary"
-                                      className="text-xs font-semibold border"
-                                      style={{
-                                        background: 'linear-gradient(135deg, #CFD8DD, #D5D7EA, #CFD3D6)',
-                                        color: '#8FA1B5',
-                                        borderColor: '#CFD3D6',
-                                      }}
-                                    >
-                                      Founder
-                                    </Badge>
-                                  ) : (
-                                    <Badge
-                                      variant="secondary"
-                                      className="text-xs font-semibold bg-blue-100 text-blue-800 border-blue-200"
-                                    >
-                                      🛡️ Moderator
-                                    </Badge>
-                                  )
+                                {comment?.author?.isAdmin && (
+                                  <>
+                                    {comment?.author?.isFounder ? (
+                                      <Badge
+                                        variant="secondary"
+                                        className="text-xs font-semibold border"
+                                        style={{
+                                          background: 'linear-gradient(135deg, #CFD8DD, #D5D7EA, #CFD3D6)',
+                                          color: '#8FA1B5',
+                                          borderColor: '#CFD3D6',
+                                        }}
+                                      >
+                                        Founder
+                                      </Badge>
+                                    ) : (
+                                      <Badge
+                                        variant="secondary"
+                                        className="text-xs font-semibold bg-blue-100 text-blue-800 border-blue-200"
+                                      >
+                                        🛡️ Moderator
+                                      </Badge>
+                                    )}
+                                  </>
                                 )}
                                 {comment?.author?.politicalLeaning && (
                                   <Badge variant="secondary" className={`text-xs ${getPoliticalIdentifierColor(comment.author.politicalLeaning)}`}>
@@ -803,7 +783,6 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
                           </div>
                         ) : (
                           <>
-                            {/* Show quote in comment if present */}
                             {comment?.quotedText && (
                               <div className="mb-2">
                                 <QuoteDisplay 
@@ -862,14 +841,14 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
                   </div>
                 )
               })}
-          </div>
+            </div>
 
-       {/* Support BTA Prompt */}
+            {/* Support BTA Prompt */}
             <div className="pt-3 border-t border-gray-100 text-center">
               <p className="text-xs text-gray-400">
                 Enjoying the conversation?{' '}
-                <a   
-                 href="/support"
+                
+                  href="/support"
                   className="hover:underline font-medium"
                   style={{ color: '#8FA1B5' }}
                 >
@@ -877,11 +856,11 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
                 </a>
               </p>
             </div>
+
           </motion.div>
         )}
       </CardContent>
 
-      {/* Edit Post Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
@@ -922,7 +901,6 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
