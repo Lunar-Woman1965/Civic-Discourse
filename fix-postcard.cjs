@@ -1,4 +1,6 @@
-'use client'
+const fs = require('fs');
+
+const content = `'use client'
 
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
@@ -190,7 +192,7 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
   const handleDelete = async () => {
     setIsDeleting(true)
     try {
-      const response = await fetch(`/api/posts/${post?.id}/delete`, { method: 'DELETE' })
+      const response = await fetch(\`/api/posts/\${post?.id}/delete\`, { method: 'DELETE' })
       if (response.ok) {
         toast.success('Post deleted successfully!')
         setShowDeleteDialog(false)
@@ -211,7 +213,7 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
     if (!editContent?.trim() || isEditing) return
     setIsEditing(true)
     try {
-      const response = await fetch(`/api/posts/${currentPost?.id}/edit`, {
+      const response = await fetch(\`/api/posts/\${currentPost?.id}/edit\`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: editContent, sourceCitation: currentPost?.sourceCitation, politicalTags: currentPost?.politicalTags })
@@ -236,7 +238,7 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
     if (!editCommentText?.trim() || isEditingComment) return
     setIsEditingComment(true)
     try {
-      const response = await fetch(`/api/comments/${commentId}/edit`, {
+      const response = await fetch(\`/api/comments/\${commentId}/edit\`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: editCommentText })
@@ -295,13 +297,13 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
                           </Badge>
                         ) : (
                           <Badge variant="secondary" className="text-xs font-semibold bg-blue-100 text-blue-800 border-blue-200">
-                            ÔøΩÔøΩÔøΩÔ∏è Moderator
+                            Ìª°Ô∏è Moderator
                           </Badge>
                         )}
                       </>
                     )}
                     {currentPost?.author?.politicalLeaning && (
-                      <Badge variant="secondary" className={`text-xs ${getPoliticalIdentifierColor(currentPost.author.politicalLeaning)}`}>
+                      <Badge variant="secondary" className={\`text-xs \${getPoliticalIdentifierColor(currentPost.author.politicalLeaning)}\`}>
                         {getPoliticalIdentifierLabel(currentPost.author.politicalLeaning)}
                       </Badge>
                     )}
@@ -398,7 +400,7 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
                 return (
                   <Tooltip key={reaction.type}>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="sm" onClick={() => handleReaction(reaction.type)} className={`flex items-center space-x-1 ${isActive ? reaction.color : 'text-gray-600 hover:text-gray-900'}`}>
+                      <Button variant="ghost" size="sm" onClick={() => handleReaction(reaction.type)} className={\`flex items-center space-x-1 \${isActive ? reaction.color : 'text-gray-600 hover:text-gray-900'}\`}>
                         <Icon className="h-4 w-4" />
                         {count > 0 && <span className="text-xs">{count}</span>}
                       </Button>
@@ -515,19 +517,19 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
                                       </Badge>
                                     ) : (
                                       <Badge variant="secondary" className="text-xs font-semibold bg-blue-100 text-blue-800 border-blue-200">
-                                        ÔøΩÔøΩÔøΩÔ∏è Moderator
+                                        Ìª°Ô∏è Moderator
                                       </Badge>
                                     )}
                                   </>
                                 )}
                                 {comment?.author?.politicalLeaning && (
-                                  <Badge variant="secondary" className={`text-xs ${getPoliticalIdentifierColor(comment.author.politicalLeaning)}`}>
+                                  <Badge variant="secondary" className={\`text-xs \${getPoliticalIdentifierColor(comment.author.politicalLeaning)}\`}>
                                     {getPoliticalIdentifierLabel(comment.author.politicalLeaning)}
                                   </Badge>
                                 )}
                                 {comment?.isFromBluesky && (
                                   <Badge variant="outline" className="text-xs bg-sky-50 text-sky-700 border-sky-300">
-                                    {comment?.atprotoAuthorHandle ? `@${comment.atprotoAuthorHandle} (Bluesky)` : 'From Bluesky'}
+                                    {comment?.atprotoAuthorHandle ? \`@\${comment.atprotoAuthorHandle} (Bluesky)\` : 'From Bluesky'}
                                   </Badge>
                                 )}
                               </>
@@ -646,3 +648,7 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
     </Card>
   )
 }
+`;
+
+fs.writeFileSync('components/dashboard/post-card.tsx', content, 'utf8');
+console.log('Done! Lines written:', content.split('\n').length);
