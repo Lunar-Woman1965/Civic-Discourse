@@ -21,13 +21,11 @@ async function validateUserAccess(user: {
   isPermanentlyBanned: boolean;
 }) {
   if (!user.isActive || user.deletedAt) {
-    console.log("Account is deactivated. Email:", user.email);
     throw new Error("ACCOUNT_DEACTIVATED");
   }
 
   if (user.isSuspended) {
     if (user.suspendedUntil && new Date() < user.suspendedUntil) {
-      console.log("Account is suspended until:", user.suspendedUntil);
       throw new Error("ACCOUNT_SUSPENDED");
     }
 
@@ -40,7 +38,6 @@ async function validateUserAccess(user: {
   }
 
   if (user.isPermanentlyBanned) {
-    console.log("Account is permanently banned:", user.email);
     throw new Error("ACCOUNT_BANNED");
   }
 }
@@ -49,6 +46,7 @@ export function getAuthOptions(): NextAuthOptions {
   return {
     secret: process.env.NEXTAUTH_SECRET,
     adapter: PrismaAdapter(prisma),
+
     providers: [
       CredentialsProvider({
         name: "credentials",
@@ -56,43 +54,30 @@ export function getAuthOptions(): NextAuthOptions {
           email: { label: "Email", type: "email" },
           password: { label: "Password", type: "password" },
         },
+
         async authorize(credentials) {
-          if (!credentials?.email || !credentials?.password) {
-            console.log("Missing credentials");
-            return null;
-          }
+          if (!credentials?.email || !credentials?.password) return null;
 
           const normalizedEmail = normalizeEmail(credentials.email);
 
           const user = await prisma.user.findUnique({
-            where: {
-              email: normalizedEmail,
-            },
+            where: { email: normalizedEmail },
           });
 
-          if (!user || !user.password) {
-            console.log("User not found or no password");
-            return null;
-          }
+          if (!user || !user.password) return null;
 
           await validateUserAccess(user);
 
           if (!user.emailVerified) {
-            console.log("Email not verified:", user.email);
             throw new Error("EMAIL_NOT_VERIFIED");
           }
 
-          const isPasswordValid = await bcrypt.compare(
+          const valid = await bcrypt.compare(
             credentials.password,
             user.password
           );
 
-          if (!isPasswordValid) {
-            console.log("Invalid password");
-            return null;
-          }
-
-          console.log("Login successful for:", user.email);
+          if (!valid) return null;
 
           await prisma.user.update({
             where: { id: user.id },
@@ -106,7 +91,7 @@ export function getAuthOptions(): NextAuthOptions {
               method: "credentials",
               email: user.email,
             },
-          }).catch((err) => console.error("Failed to log login activity:", err));
+          }).catch(() => {});
 
           return {
             id: user.id,
@@ -116,21 +101,26 @@ export function getAuthOptions(): NextAuthOptions {
             lastName: user.lastName,
             image: user.profileImage,
             isAdmin: user.isAdmin,
+            isFounder: user.isFounder,
             role: user.role,
           } as any;
         },
       }),
+
       GoogleProvider({
         clientId: process.env.GOOGLE_CLIENT_ID || "",
         clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
       }),
     ],
+
     session: {
       strategy: "jwt",
     },
+
     pages: {
       signIn: "/auth/signin",
     },
+
     callbacks: {
       async jwt({ token, user }) {
         if (user) {
@@ -138,22 +128,26 @@ export function getAuthOptions(): NextAuthOptions {
           token.firstName = (user as any).firstName;
           token.lastName = (user as any).lastName;
           token.isAdmin = Boolean((user as any).isAdmin);
+          token.isFounder = Boolean((user as any).isFounder);
           token.role = (user as any).role;
           token.image = user.image;
         }
         return token;
       },
+
       async session({ session, token }) {
         if (token) {
           session.user.id = token.id as string;
           session.user.firstName = token.firstName as string;
           session.user.lastName = token.lastName as string;
           session.user.isAdmin = Boolean(token.isAdmin);
+          session.user.isFounder = Boolean(token.isFounder);
           session.user.role = token.role as string;
           session.user.image = token.image as string;
         }
         return session;
       },
+
       async signIn({ user, account, profile }) {
         if (account?.provider === "google") {
           const normalizedEmail = normalizeEmail(user.email!);
@@ -177,14 +171,18 @@ export function getAuthOptions(): NextAuthOptions {
                 method: "google",
                 email: existingUser.email,
               },
-            }).catch((err) => console.error("Failed to log login activity:", err));
+            }).catch(() => {});
           } else {
             await prisma.user.create({
               data: {
                 email: normalizedEmail,
                 name: user.name,
-                firstName: (profile as any)?.given_name || user.name?.split(" ")[0],
-                lastName: (profile as any)?.family_name || user.name?.split(" ")[1],
+                firstName:
+                  (profile as any)?.given_name ||
+                  user.name?.split(" ")[0],
+                lastName:
+                  (profile as any)?.family_name ||
+                  user.name?.split(" ")[1],
                 profileImage: user.image,
                 emailVerified: new Date(),
                 isActive: true,
