@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -54,6 +55,8 @@ import {
   getPoliticalLeaningLabel,
 } from "@/lib/political-utils";
 
+type Role = "USER" | "MODERATOR" | "PLATFORM_FOUNDER";
+
 interface UserProfile {
   id: string;
   email: string;
@@ -71,11 +74,15 @@ interface UserProfile {
   joinedAt: string;
   emailVerified?: string | null;
   password: string | null;
+  role?: Role | null;
+  isFounder?: boolean;
+  isAdmin?: boolean;
 }
 
 export default function ProfilePage() {
   const { data: session, status } = useSession() || {};
   const router = useRouter();
+
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -118,6 +125,7 @@ export default function ProfilePage() {
 
       if (response.ok) {
         const data = await response.json();
+
         setProfile(data.user);
         setFormData({
           firstName: data.user.firstName || "",
@@ -144,9 +152,7 @@ export default function ProfilePage() {
     try {
       const response = await fetch("/api/profile", {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
 
@@ -225,9 +231,7 @@ export default function ProfilePage() {
     try {
       const response = await fetch("/api/profile/avatar", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ avatarStyle: style, avatarSeed: seed }),
       });
 
@@ -358,9 +362,7 @@ export default function ProfilePage() {
     try {
       const response = await fetch("/api/profile/change-password", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           currentPassword: passwordData.currentPassword,
           newPassword: passwordData.newPassword,
@@ -402,6 +404,34 @@ export default function ProfilePage() {
     );
   }
 
+  const displayName =
+    profile.username ||
+    [profile.firstName, profile.lastName].filter(Boolean).join(" ") ||
+    profile.name ||
+    "User";
+
+  const avatarFallback =
+    profile.firstName?.[0] ||
+    profile.username?.[0] ||
+    profile.name?.[0] ||
+    "U";
+
+  const roleLabel =
+    profile.role === "PLATFORM_FOUNDER" || profile.isFounder
+      ? "Founder"
+      : profile.isAdmin
+        ? "Admin"
+        : profile.role === "MODERATOR"
+          ? "Moderator"
+          : null;
+
+  const roleBadgeClassName =
+    roleLabel === "Founder"
+      ? "border-amber-300 bg-amber-100 text-amber-900"
+      : roleLabel === "Admin"
+        ? "border-red-200 bg-red-100 text-red-800"
+        : "border-blue-200 bg-blue-100 text-blue-800";
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container max-w-4xl mx-auto py-8 px-4">
@@ -414,8 +444,22 @@ export default function ProfilePage() {
           Back to Dashboard
         </Button>
 
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold">My Profile</h1>
+        <div className="flex flex-col gap-4 mb-8 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">My Profile</h1>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="text-sm text-muted-foreground">{displayName}</span>
+              {roleLabel && (
+                <Badge
+                  variant="secondary"
+                  className={`font-semibold ${roleBadgeClassName}`}
+                >
+                  {roleLabel}
+                </Badge>
+              )}
+            </div>
+          </div>
+
           <div className="flex gap-2">
             <Button
               variant="outline"
@@ -451,8 +495,7 @@ export default function ProfilePage() {
                       alt={profile.name || "Profile"}
                     />
                     <AvatarFallback className="text-3xl">
-                      {profile.firstName?.[0]}
-                      {profile.lastName?.[0]}
+                      {avatarFallback.toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   {isUploadingPhoto && (
@@ -757,6 +800,20 @@ export default function ProfilePage() {
               <CardTitle>Account Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {roleLabel && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">
+                    Platform Role
+                  </span>
+                  <Badge
+                    variant="secondary"
+                    className={`font-semibold ${roleBadgeClassName}`}
+                  >
+                    {roleLabel}
+                  </Badge>
+                </div>
+              )}
+
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -872,7 +929,10 @@ export default function ProfilePage() {
                           <p className="font-semibold text-red-700">
                             This action cannot be undone!
                           </p>
-                          <p>All of your data will be permanently deleted, including:</p>
+                          <p>
+                            All of your data will be permanently deleted,
+                            including:
+                          </p>
                           <ul className="list-disc list-inside space-y-1 text-sm">
                             <li>Your profile and personal information</li>
                             <li>All posts and comments you've created</li>
