@@ -1,25 +1,25 @@
-
 'use client'
 
 import { useState } from 'react'
 import { signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
-import { 
-  Home, 
-  Users, 
-  MessageCircle, 
-  Settings, 
+import {
+  Home,
+  Users,
+  MessageCircle,
+  Settings,
   LogOut,
   Vote,
-  Shield
+  Shield,
+  HeartHandshake
 } from 'lucide-react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
@@ -36,7 +36,7 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ children, user }: DashboardLayoutProps) {
   const [activeTab, setActiveTab] = useState('home')
-  
+
   const currentUser = user
 
   const navigation = [
@@ -44,41 +44,43 @@ export default function DashboardLayout({ children, user }: DashboardLayoutProps
     { name: 'Friends', icon: Users, href: '/friends', id: 'friends' },
     { name: 'Groups', icon: MessageCircle, href: '/groups', id: 'groups' },
     { name: 'Politics', icon: Vote, href: '/politics', id: 'politics' },
+    { name: 'Support', icon: HeartHandshake, href: '/support', id: 'support' },
     { name: 'Moderation', icon: Shield, href: '/moderation', id: 'moderation' },
   ]
 
   return (
     <div className="min-h-screen bg-creamy-tan-50">
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-white border-b border-creamy-tan-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo - Clickable to return to dashboard */}
-            <Link href="/dashboard" className="flex items-center cursor-pointer hover:opacity-80 transition-opacity">
-              <Vote className="h-8 w-8 text-turquoise-600 mr-2" />
-              <span className="text-xl font-bold text-earth-brown-900">Bridging the Aisle</span>
+      <header className="sticky top-0 z-40 border-b border-creamy-tan-200 bg-white shadow-sm">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex h-16 items-center justify-between">
+            <Link
+              href="/dashboard"
+              className="flex cursor-pointer items-center transition-opacity hover:opacity-80"
+            >
+              <Vote className="mr-2 h-8 w-8 text-turquoise-600" />
+              <span className="text-xl font-bold text-earth-brown-900">
+                Bridging the Aisle
+              </span>
             </Link>
 
-            {/* Navigation */}
-            <nav className="hidden md:flex space-x-8">
+            <nav className="hidden space-x-8 md:flex">
               {navigation.map((item) => (
                 <Link
                   key={item.name}
                   href={item.href}
                   onClick={() => setActiveTab(item.id)}
-                  className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                  className={`inline-flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                     activeTab === item.id
-                      ? 'text-turquoise-600 bg-turquoise-50'
-                      : 'text-earth-brown-700 hover:text-turquoise-600 hover:bg-creamy-tan-100'
+                      ? 'bg-turquoise-50 text-turquoise-600'
+                      : 'text-earth-brown-700 hover:bg-creamy-tan-100 hover:text-turquoise-600'
                   }`}
                 >
-                  <item.icon className="h-4 w-4 mr-2" />
+                  <item.icon className="mr-2 h-4 w-4" />
                   {item.name}
                 </Link>
               ))}
             </nav>
 
-            {/* User Menu */}
             <div className="flex items-center space-x-4">
               <NotificationsDropdown />
               <UserSearchDialog />
@@ -86,42 +88,65 @@ export default function DashboardLayout({ children, user }: DashboardLayoutProps
               <DropdownMenu>
                 <DropdownMenuTrigger>
                   <Avatar className="h-8 w-8 cursor-pointer">
-                    <AvatarImage src={getImageUrl(currentUser?.profileImage) || getImageUrl(currentUser?.image)} />
+                    <AvatarImage
+                      src={
+                        getImageUrl(currentUser?.profileImage) ||
+                        getImageUrl(currentUser?.image)
+                      }
+                    />
                     <AvatarFallback>
                       {getAvatarFallback(currentUser)}
                     </AvatarFallback>
                   </Avatar>
                 </DropdownMenuTrigger>
+
                 <DropdownMenuContent align="end" className="w-48">
                   <div className="px-2 py-1.5">
                     <p className="text-sm font-medium">{getDisplayName(currentUser)}</p>
                     <p className="text-xs text-gray-500">{currentUser?.email}</p>
                   </div>
+
                   <DropdownMenuSeparator />
+
                   <DropdownMenuItem asChild>
                     <Link href="/profile" className="flex items-center">
-                      <Settings className="h-4 w-4 mr-2" />
+                      <Settings className="mr-2 h-4 w-4" />
                       Profile & Settings
                     </Link>
                   </DropdownMenuItem>
+
+                  <DropdownMenuItem asChild>
+                    <Link href="/support" className="flex items-center">
+                      <HeartHandshake className="mr-2 h-4 w-4" />
+                      Support BTA
+                    </Link>
+                  </DropdownMenuItem>
+
                   {currentUser?.isAdmin && (
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem asChild>
                         <Link href="/admin" className="flex items-center text-[#6B8E23]">
-                          <Shield className="h-4 w-4 mr-2" />
+                          <Shield className="mr-2 h-4 w-4" />
                           Admin Dashboard
                         </Link>
                       </DropdownMenuItem>
                     </>
                   )}
+
                   <DropdownMenuSeparator />
+
                   <DropdownMenuItem asChild onSelect={(e) => e.preventDefault()}>
                     <HelpDropdownMenu />
                   </DropdownMenuItem>
+
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => signOut()} className="text-red-600">
-                    <LogOut className="h-4 w-4 mr-2" />
+
+                  <DropdownMenuItem
+                    onClick={() => signOut()}
+                    className="text-red-600"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
                     Sign Out
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -131,8 +156,7 @@ export default function DashboardLayout({ children, user }: DashboardLayoutProps
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -142,38 +166,45 @@ export default function DashboardLayout({ children, user }: DashboardLayoutProps
         </motion.div>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-creamy-tan-200 bg-white mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <footer className="mt-12 border-t border-creamy-tan-200 bg-white">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <div className="text-sm text-earth-brown-600">
               © 2025 Bridging the Aisle. Built for respectful political dialogue.
             </div>
+
             <div className="flex items-center gap-4 text-sm">
-              <Link 
-                href="/community-standards" 
-                className="text-earth-brown-700 hover:text-turquoise-600 transition-colors"
+              <Link
+                href="/community-standards"
+                className="text-earth-brown-700 transition-colors hover:text-turquoise-600"
               >
                 Community Standards
               </Link>
               <span className="text-earth-brown-300">•</span>
-              <Link 
-                href="/community-standards#faq" 
-                className="text-earth-brown-700 hover:text-turquoise-600 transition-colors"
+              <Link
+                href="/community-standards#faq"
+                className="text-earth-brown-700 transition-colors hover:text-turquoise-600"
               >
                 FAQ
               </Link>
               <span className="text-earth-brown-300">•</span>
-              <Link 
-                href="/moderation" 
-                className="text-earth-brown-700 hover:text-turquoise-600 transition-colors"
+              <Link
+                href="/moderation"
+                className="text-earth-brown-700 transition-colors hover:text-turquoise-600"
               >
                 Moderation
               </Link>
               <span className="text-earth-brown-300">•</span>
-              <Link 
-                href="/privacy" 
-                className="text-earth-brown-700 hover:text-turquoise-600 transition-colors"
+              <Link
+                href="/support"
+                className="text-earth-brown-700 transition-colors hover:text-turquoise-600"
+              >
+                Support BTA
+              </Link>
+              <span className="text-earth-brown-300">•</span>
+              <Link
+                href="/privacy"
+                className="text-earth-brown-700 transition-colors hover:text-turquoise-600"
               >
                 Privacy Policy
               </Link>

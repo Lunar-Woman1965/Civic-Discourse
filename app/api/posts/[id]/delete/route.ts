@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -11,47 +10,51 @@ export async function DELETE(
   try {
     const session = await getServerSession(authOptions)
 
-    if (!session?.user?.email) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const user = await prisma.user.findUnique({
-      where: { email: session.user.email }
+      where: { id: session.user.id },
+      select: {
+        id: true,
+        isAdmin: true,
+      },
     })
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // Find the post
     const post = await prisma.post.findUnique({
-      where: { id: params.id }
+      where: { id: params.id },
+      select: {
+        id: true,
+        authorId: true,
+      },
     })
 
     if (!post) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 })
     }
 
-    // Check if user is the author or an admin
-    if (post.authorId !== user.id && !user.isAdmin) {
+    if (post.authorId !== user.id && !Boolean(user.isAdmin)) {
       return NextResponse.json(
         { error: 'You do not have permission to delete this post' },
         { status: 403 }
       )
     }
 
-    // Delete all reactions and comments first (cascade)
     await prisma.reaction.deleteMany({
-      where: { postId: params.id }
+      where: { postId: params.id },
     })
 
     await prisma.comment.deleteMany({
-      where: { postId: params.id }
+      where: { postId: params.id },
     })
 
-    // Delete the post
     await prisma.post.delete({
-      where: { id: params.id }
+      where: { id: params.id },
     })
 
     return NextResponse.json({ message: 'Post deleted successfully' })

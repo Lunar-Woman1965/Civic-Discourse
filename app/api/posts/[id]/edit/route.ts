@@ -1,4 +1,3 @@
-
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -13,6 +12,7 @@ export async function PATCH(
 ) {
   try {
     const session = await getServerSession(authOptions)
+
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -23,10 +23,9 @@ export async function PATCH(
       return NextResponse.json({ error: 'Content is required' }, { status: 400 })
     }
 
-    // Check if post exists and user is the author
     const existingPost = await prisma.post.findUnique({
       where: { id: params.id },
-      select: { authorId: true }
+      select: { authorId: true },
     })
 
     if (!existingPost) {
@@ -40,10 +39,8 @@ export async function PATCH(
       )
     }
 
-    // Check content for violations
     const moderationResult = moderateContent(content)
 
-    // Update the post
     const updatedPost = await prisma.post.update({
       where: { id: params.id },
       data: {
@@ -62,15 +59,18 @@ export async function PATCH(
             lastName: true,
             profileImage: true,
             politicalLeaning: true,
-            civilityScore: true
-          }
+            civilityScore: true,
+            role: true,
+            isAdmin: true,
+            isFounder: true,
+          },
         },
         reactions: {
           include: {
             user: {
-              select: { id: true, name: true }
-            }
-          }
+              select: { id: true, name: true },
+            },
+          },
         },
         comments: {
           include: {
@@ -79,30 +79,32 @@ export async function PATCH(
                 id: true,
                 name: true,
                 profileImage: true,
-                politicalLeaning: true
-              }
+                politicalLeaning: true,
+                role: true,
+                isAdmin: true,
+                isFounder: true,
+              },
             },
             reactions: {
               include: {
                 user: {
-                  select: { id: true, name: true }
-                }
-              }
-            }
+                  select: { id: true, name: true },
+                },
+              },
+            },
           },
           orderBy: { createdAt: 'desc' },
-          take: 5
+          take: 5,
         },
         _count: {
           select: {
             comments: true,
-            reactions: true
-          }
-        }
-      }
+            reactions: true,
+          },
+        },
+      },
     })
 
-    // If content violation detected, create violation record
     if (moderationResult.isViolation) {
       await prisma.userViolation.create({
         data: {

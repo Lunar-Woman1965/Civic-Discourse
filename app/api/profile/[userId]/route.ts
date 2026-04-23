@@ -42,6 +42,8 @@ export async function GET(
         civilityScore: true,
         joinedAt: true,
         emailVerified: true,
+        role: true,
+        isFounder: true,
         isAdmin: true,
         profileVisibility: true,
         email: true,
@@ -118,12 +120,12 @@ export async function GET(
       take: 5,
     });
 
-    const { email, ...userWithoutEmail } = user;
+    const { email, emailVerified, ...userWithoutEmail } = user;
 
     return NextResponse.json({
       user: {
         ...userWithoutEmail,
-        isVerified: !!user.emailVerified,
+        isVerified: Boolean(emailVerified),
         posts,
         friendshipStatus,
       },

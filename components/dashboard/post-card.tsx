@@ -1,5 +1,6 @@
 'use client'
 
+import { ReactionPicker, type ReactionType } from '@/components/dashboard/reaction-picker'
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -12,20 +13,19 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { 
-  MessageCircle, 
-  ThumbsUp, 
-  ThumbsDown, 
+import {
+  MessageCircle,
+  ThumbsUp,
+  ThumbsDown,
   HeartHandshake,
   Frown,
   Flame,
-  Skull,
   ExternalLink,
   MoreHorizontal,
   Flag,
   Trash2,
   Edit2,
-  Pin
+  Pin,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -82,12 +82,12 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
   const [editContent, setEditContent] = useState(post?.content ?? '')
   const [isEditing, setIsEditing] = useState(false)
   const [currentPost, setCurrentPost] = useState(post)
-  const [editingCommentId, setEditingCommentId] = useState(null)
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
   const [editCommentText, setEditCommentText] = useState('')
   const [isEditingComment, setIsEditingComment] = useState(false)
-  const [quotedText, setQuotedText] = useState(null)
-  const [quotedAuthorId, setQuotedAuthorId] = useState(null)
-  const [replyingToCommentId, setReplyingToCommentId] = useState(null)
+  const [quotedText, setQuotedText] = useState<string | null>(null)
+  const [quotedAuthorId, setQuotedAuthorId] = useState<string | null>(null)
+  const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(null)
 
   useEffect(() => {
     if (isHighlighted) {
@@ -101,27 +101,45 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
     { type: 'care', icon: HeartHandshake, label: 'Care/Support', color: 'text-pink-500' },
     { type: 'mad', icon: Frown, label: 'Mad', color: 'text-orange-500' },
     { type: 'angry', icon: Flame, label: 'Angry', color: 'text-red-600' },
-    { type: 'horrified', icon: Skull, label: 'Horrified', color: 'text-gray-700' }
+    { type: 'horrified', icon: null, label: 'Horrified', color: 'text-black' },
   ]
 
-  const handleReaction = async (reactionType) => {
+  const handleReaction = async (reactionType: ReactionType) => {
     try {
       const response = await fetch('/api/posts/react', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postId: post?.id, type: reactionType })
+        body: JSON.stringify({ postId: post?.id, type: reactionType }),
       })
+
       if (response.ok) {
-        const existingReaction = reactions?.find((r) => r?.userId === currentUser?.id && r?.postId === post?.id)
+        const existingReaction = reactions?.find(
+          (r: any) => r?.userId === currentUser?.id && r?.postId === post?.id
+        )
+
         if (existingReaction) {
           if (existingReaction.type === reactionType) {
-            setReactions(reactions?.filter((r) => r?.id !== existingReaction.id))
+            setReactions(reactions?.filter((r: any) => r?.id !== existingReaction.id))
           } else {
-            setReactions(reactions?.map((r) => r?.id === existingReaction.id ? { ...r, type: reactionType } : r))
+            setReactions(
+              reactions?.map((r: any) =>
+                r?.id === existingReaction.id ? { ...r, type: reactionType } : r
+              )
+            )
           }
         } else {
-          setReactions([...reactions, { id: Date.now().toString(), type: reactionType, userId: currentUser?.id, postId: post?.id, user: { id: currentUser?.id, name: currentUser?.name } }])
+          setReactions([
+            ...reactions,
+            {
+              id: Date.now().toString(),
+              type: reactionType,
+              userId: currentUser?.id,
+              postId: post?.id,
+              user: { id: currentUser?.id, name: currentUser?.name },
+            },
+          ])
         }
+
         toast.success('Reaction added!')
       }
     } catch (error) {
@@ -129,16 +147,25 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
     }
   }
 
-  const handleComment = async (e) => {
+  const handleComment = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!commentText?.trim() || isSubmitting) return
+
     setIsSubmitting(true)
+
     try {
       const response = await fetch('/api/posts/comment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postId: post?.id, content: commentText, parentId: replyingToCommentId, quotedText, quotedAuthorId })
+        body: JSON.stringify({
+          postId: post?.id,
+          content: commentText,
+          parentId: replyingToCommentId,
+          quotedText,
+          quotedAuthorId,
+        }),
       })
+
       if (response.ok) {
         const newComment = await response.json()
         setComments([newComment, ...comments])
@@ -158,26 +185,30 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
   const handleQuotePost = () => {
     const selection = window.getSelection()
     const selectedText = selection?.toString().trim()
+
     if (selectedText && selectedText.length > 0) {
       setQuotedText(selectedText)
-      setQuotedAuthorId(currentPost?.authorId)
     } else {
       setQuotedText((currentPost?.content || '').substring(0, 200))
-      setQuotedAuthorId(currentPost?.authorId)
     }
+
+    setQuotedAuthorId(currentPost?.authorId ?? null)
+    setReplyingToCommentId(null)
     setShowComments(true)
   }
 
-  const handleQuoteComment = (comment) => {
+  const handleQuoteComment = (comment: any) => {
     const selection = window.getSelection()
     const selectedText = selection?.toString().trim()
+
     if (selectedText && selectedText.length > 0) {
       setQuotedText(selectedText)
     } else {
       setQuotedText((comment?.content || '').substring(0, 200))
     }
-    setQuotedAuthorId(comment?.authorId)
-    setReplyingToCommentId(comment?.id)
+
+    setQuotedAuthorId(comment?.authorId ?? null)
+    setReplyingToCommentId(comment?.id ?? null)
     setShowComments(true)
   }
 
@@ -189,8 +220,10 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
 
   const handleDelete = async () => {
     setIsDeleting(true)
+
     try {
       const response = await fetch(`/api/posts/${post?.id}/delete`, { method: 'DELETE' })
+
       if (response.ok) {
         toast.success('Post deleted successfully!')
         setShowDeleteDialog(false)
@@ -209,13 +242,20 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
 
   const handleEdit = async () => {
     if (!editContent?.trim() || isEditing) return
+
     setIsEditing(true)
+
     try {
       const response = await fetch(`/api/posts/${currentPost?.id}/edit`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: editContent, sourceCitation: currentPost?.sourceCitation, politicalTags: currentPost?.politicalTags })
+        body: JSON.stringify({
+          content: editContent,
+          sourceCitation: currentPost?.sourceCitation,
+          politicalTags: currentPost?.politicalTags,
+        }),
       })
+
       if (response.ok) {
         const updatedPost = await response.json()
         setCurrentPost(updatedPost)
@@ -232,18 +272,21 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
     }
   }
 
-  const handleEditComment = async (commentId) => {
+  const handleEditComment = async (commentId: string) => {
     if (!editCommentText?.trim() || isEditingComment) return
+
     setIsEditingComment(true)
+
     try {
       const response = await fetch(`/api/comments/${commentId}/edit`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: editCommentText })
+        body: JSON.stringify({ content: editCommentText }),
       })
+
       if (response.ok) {
         const updatedComment = await response.json()
-        setComments(comments?.map((c) => c?.id === commentId ? updatedComment : c))
+        setComments(comments?.map((c: any) => (c?.id === commentId ? updatedComment : c)))
         setEditingCommentId(null)
         setEditCommentText('')
         toast.success('Comment updated successfully!')
@@ -258,12 +301,55 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
     }
   }
 
-  const userReaction = reactions?.find((r) => r?.userId === currentUser?.id)
-  const canDeletePost = post?.authorId === currentUser?.id || currentUser?.isAdmin
+  const canDeletePost = post?.authorId === currentUser?.id || Boolean(currentUser?.isAdmin)
   const canEditPost = post?.authorId === currentUser?.id
 
+  const renderAuthorityBadge = (author: any) => {
+    if (!author) return null
+
+    if (author?.isFounder || author?.role === 'PLATFORM_FOUNDER') {
+      return (
+        <Badge
+          variant="secondary"
+          className="text-xs font-semibold border"
+          style={{
+            background: 'linear-gradient(135deg, #CFD8DD, #D5D7EA, #CFD3D6)',
+            color: '#8FA1B5',
+            borderColor: '#CFD3D6',
+          }}
+        >
+          Founder
+        </Badge>
+      )
+    }
+
+    if (author?.isAdmin) {
+      return (
+        <Badge
+          variant="secondary"
+          className="text-xs font-semibold bg-red-100 text-red-800 border-red-200"
+        >
+          Admin
+        </Badge>
+      )
+    }
+
+    if (author?.role === 'MODERATOR') {
+      return (
+        <Badge
+          variant="secondary"
+          className="text-xs font-semibold bg-blue-100 text-blue-800 border-blue-200"
+        >
+          Moderator
+        </Badge>
+      )
+    }
+
+    return null
+  }
+
   return (
-    <Card className="overflow-hidden hover:shadow-lg transition-shadow duration-300">
+    <Card className="overflow-hidden transition-shadow duration-300 hover:shadow-lg">
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center space-x-3">
@@ -277,78 +363,104 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
                 </>
               )}
             </Avatar>
+
             <div>
               <div className="flex items-center space-x-2">
                 {currentPost?.isAnonymous ? (
                   <>
-                    <p className="font-medium text-gray-700 italic">Anonymous User</p>
-                    <Badge variant="secondary" className="text-xs bg-gray-200 text-gray-600">Anonymous</Badge>
+                    <p className="font-medium italic text-gray-700">Anonymous User</p>
+                    <Badge variant="secondary" className="bg-gray-200 text-xs text-gray-600">
+                      Anonymous
+                    </Badge>
                   </>
                 ) : (
                   <>
                     <p className="font-medium text-gray-900">{getDisplayName(currentPost?.author)}</p>
-                    {currentPost?.author?.isAdmin && (
-                      <>
-                        {currentPost?.author?.isFounder ? (
-                          <Badge variant="secondary" className="text-xs font-semibold border" style={{ background: 'linear-gradient(135deg, #CFD8DD, #D5D7EA, #CFD3D6)', color: '#8FA1B5', borderColor: '#CFD3D6' }}>
-                            Founder
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-xs font-semibold bg-blue-100 text-blue-800 border-blue-200">
-                            ���️ Moderator
-                          </Badge>
-                        )}
-                      </>
-                    )}
+
+                    {renderAuthorityBadge(currentPost?.author)}
+
                     {currentPost?.author?.politicalLeaning && (
-                      <Badge variant="secondary" className={`text-xs ${getPoliticalIdentifierColor(currentPost.author.politicalLeaning)}`}>
+                      <Badge
+                        variant="secondary"
+                        className={`text-xs ${getPoliticalIdentifierColor(
+                          currentPost.author.politicalLeaning
+                        )}`}
+                      >
                         {getPoliticalIdentifierLabel(currentPost.author.politicalLeaning)}
                       </Badge>
                     )}
                   </>
                 )}
               </div>
+
               <div className="flex items-center gap-2">
                 <p className="text-sm text-gray-500">
                   {formatDistanceToNow(new Date(currentPost?.createdAt ?? new Date()))} ago
-                  {currentPost?.editedAt && <span className="text-xs text-gray-400 ml-2">(edited)</span>}
+                  {currentPost?.editedAt && (
+                    <span className="ml-2 text-xs text-gray-400">(edited)</span>
+                  )}
                 </p>
+
                 {currentPost?.isPinned && (
                   <TooltipProvider>
                     <Tooltip>
-                      <TooltipTrigger><Pin className="h-4 w-4 text-emerald-600 fill-emerald-600" /></TooltipTrigger>
-                      <TooltipContent><p>Pinned Post</p></TooltipContent>
+                      <TooltipTrigger>
+                        <Pin className="h-4 w-4 fill-emerald-600 text-emerald-600" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Pinned Post</p>
+                      </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 )}
               </div>
             </div>
           </div>
+
           <div className="flex items-center space-x-2">
             {currentPost?.isFactChecked && (
-              <Badge variant="outline" className="text-green-600 border-green-600">✓ Fact-checked</Badge>
+              <Badge variant="outline" className="border-green-600 text-green-600">
+                ✓ Fact-checked
+              </Badge>
             )}
+
             {(canEditPost || canDeletePost) && (
               <DropdownMenu>
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm"><MoreHorizontal className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="sm">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
                       </DropdownMenuTrigger>
                     </TooltipTrigger>
-                    <TooltipContent><p>More options</p></TooltipContent>
+                    <TooltipContent>
+                      <p>More options</p>
+                    </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
+
                 <DropdownMenuContent align="end">
                   {canEditPost && (
-                    <DropdownMenuItem onClick={() => { setEditContent(currentPost?.content ?? ''); setShowEditDialog(true) }}>
-                      <Edit2 className="h-4 w-4 mr-2" />Edit Post
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setEditContent(currentPost?.content ?? '')
+                        setShowEditDialog(true)
+                      }}
+                    >
+                      <Edit2 className="mr-2 h-4 w-4" />
+                      Edit Post
                     </DropdownMenuItem>
                   )}
+
                   {canDeletePost && (
-                    <DropdownMenuItem onClick={() => setShowDeleteDialog(true)} className="text-red-600 focus:text-red-600">
-                      <Trash2 className="h-4 w-4 mr-2" />Delete Post
+                    <DropdownMenuItem
+                      onClick={() => setShowDeleteDialog(true)}
+                      className="text-red-600 focus:text-red-600"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete Post
                     </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
@@ -360,84 +472,111 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
 
       <CardContent className="space-y-4">
         {currentPost?.quotedText && (
-          <QuoteDisplay quotedText={currentPost.quotedText} quotedAuthor={currentPost.quotedAuthor} />
+          <QuoteDisplay
+            quotedText={currentPost.quotedText}
+            quotedAuthor={currentPost.quotedAuthor}
+          />
         )}
+
         <div className="prose prose-sm max-w-none">
-          <p className="text-gray-900 whitespace-pre-wrap">{currentPost?.content}</p>
+          <p className="whitespace-pre-wrap text-gray-900">{currentPost?.content}</p>
         </div>
+
         {currentPost?.imageUrl && (
-          <div className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden">
-            <Image src={currentPost.imageUrl} alt="Post image" fill className="object-cover" sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" />
+          <div className="relative aspect-video overflow-hidden rounded-lg bg-gray-100">
+            <Image
+              src={currentPost.imageUrl}
+              alt="Post image"
+              fill
+              className="object-cover"
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            />
           </div>
         )}
+
         {currentPost?.sourceCitation && (
-          <div className="p-3 bg-turquoise-50 rounded-lg border-l-4 border-turquoise-500">
+          <div className="rounded-lg border-l-4 border-turquoise-500 bg-turquoise-50 p-3">
             <div className="flex items-center space-x-2">
               <ExternalLink className="h-4 w-4 text-turquoise-600" />
               <span className="text-sm font-medium text-turquoise-900">Source:</span>
             </div>
-            <a href={currentPost.sourceCitation} target="_blank" rel="noopener noreferrer" className="text-sm text-turquoise-700 hover:underline break-all">
+            <a
+              href={currentPost.sourceCitation}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="break-all text-sm text-turquoise-700 hover:underline"
+            >
               {currentPost.sourceCitation}
             </a>
           </div>
         )}
+
         {currentPost?.politicalTags?.length > 0 && (
           <div className="flex flex-wrap gap-2">
-            {currentPost.politicalTags.map((tag, index) => (
-              <Badge key={index} variant="outline" className="text-xs">#{tag}</Badge>
+            {currentPost.politicalTags.map((tag: any, index: number) => (
+              <Badge key={index} variant="outline" className="text-xs">
+                #{tag}
+              </Badge>
             ))}
           </div>
         )}
-        <div className="flex items-center justify-between pt-3 border-t">
+
+        <div className="flex items-center justify-between border-t pt-3">
           <TooltipProvider>
             <div className="flex items-center space-x-2">
-              {reactionTypes?.map((reaction) => {
-                const Icon = reaction.icon
-                const count = reactions?.filter((r) => r?.type === reaction.type)?.length ?? 0
-                const isActive = userReaction?.type === reaction.type
-                return (
-                  <Tooltip key={reaction.type}>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="sm" onClick={() => handleReaction(reaction.type)} className={`flex items-center space-x-1 ${isActive ? reaction.color : 'text-gray-600 hover:text-gray-900'}`}>
-                        <Icon className="h-4 w-4" />
-                        {count > 0 && <span className="text-xs">{count}</span>}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent><p>{reaction.label}</p></TooltipContent>
-                  </Tooltip>
-                )
-              })}
+              <ReactionPicker onReact={handleReaction} defaultReaction="thumbs_up" />
             </div>
           </TooltipProvider>
+
           <div className="flex items-center space-x-4">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" onClick={() => setShowComments(!showComments)} className="flex items-center space-x-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowComments(!showComments)}
+                  className="flex items-center space-x-1"
+                >
                   <MessageCircle className="h-4 w-4" />
                   <span className="text-xs">{post?._count?.comments ?? 0}</span>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent><p>Comment</p></TooltipContent>
+              <TooltipContent>
+                <p>Comment</p>
+              </TooltipContent>
             </Tooltip>
+
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" onClick={handleQuotePost} className="flex items-center space-x-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleQuotePost}
+                  className="flex items-center space-x-1"
+                >
                   <QuoteIcon className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent><p>Quote & Reply</p></TooltipContent>
+              <TooltipContent>
+                <p>Quote & Reply</p>
+              </TooltipContent>
             </Tooltip>
+
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm"><Flag className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="sm">
+                  <Flag className="h-4 w-4" />
+                </Button>
               </TooltipTrigger>
-              <TooltipContent><p>Report</p></TooltipContent>
+              <TooltipContent>
+                <p>Report</p>
+              </TooltipContent>
             </Tooltip>
           </div>
         </div>
 
         {currentUser && (
-          <div className="border-t pt-3 mt-3">
+          <div className="mt-3 border-t pt-3">
             <BlueskyControls
               postId={currentPost?.id}
               postAuthorId={currentPost?.authorId}
@@ -457,20 +596,50 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
         )}
 
         {showComments && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ duration: 0.3 }} className="border-t pt-4 space-y-4">
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            transition={{ duration: 0.3 }}
+            className="space-y-4 border-t pt-4"
+          >
             <form onSubmit={handleComment} className="flex space-x-3">
               <Avatar className="h-8 w-8">
-                <AvatarImage src={getImageUrl(currentUser?.profileImage) || getImageUrl(currentUser?.image)} />
+                <AvatarImage
+                  src={getImageUrl(currentUser?.profileImage) || getImageUrl(currentUser?.image)}
+                />
                 <AvatarFallback>{getAvatarFallback(currentUser)}</AvatarFallback>
               </Avatar>
+
               <div className="flex-1 space-y-2">
                 {quotedText && (
                   <div className="relative">
-                    <QuoteDisplay quotedText={quotedText} quotedAuthor={quotedAuthorId === currentPost?.authorId ? currentPost?.author : comments?.find((c) => c?.authorId === quotedAuthorId)?.author} />
-                    <Button type="button" variant="ghost" size="sm" onClick={clearQuote} className="absolute top-2 right-2">Clear</Button>
+                    <QuoteDisplay
+                      quotedText={quotedText}
+                      quotedAuthor={
+                        comments?.find((c: any) => c?.authorId === quotedAuthorId)?.author ??
+                        currentPost?.author
+                      }
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearQuote}
+                      className="absolute right-2 top-2"
+                    >
+                      Clear
+                    </Button>
                   </div>
                 )}
-                <MentionTextarea placeholder="Share your thoughts respectfully... (use @ to mention someone)" value={commentText} onChange={setCommentText} className="min-h-[60px] resize-none" minRows={2} />
+
+                <MentionTextarea
+                  placeholder="Share your thoughts respectfully... (use @ to mention someone)"
+                  value={commentText}
+                  onChange={setCommentText}
+                  className="min-h-[60px] resize-none"
+                  minRows={2}
+                />
+
                 <div className="flex justify-end">
                   <Button type="submit" size="sm" disabled={!commentText?.trim() || isSubmitting}>
                     {isSubmitting ? 'Posting...' : 'Comment'}
@@ -480,14 +649,17 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
             </form>
 
             <div className="space-y-4">
-              {comments?.map((comment) => {
+              {comments?.map((comment: any) => {
                 const isEditingThisComment = editingCommentId === comment?.id
                 const canEditComment = comment?.authorId === currentUser?.id
+
                 return (
                   <div key={comment?.id} className="flex space-x-3">
                     <Avatar className="h-8 w-8">
                       {comment?.isAnonymous ? (
-                        <AvatarFallback className="bg-gray-300 text-gray-600 text-xs">?</AvatarFallback>
+                        <AvatarFallback className="bg-gray-300 text-xs text-gray-600">
+                          ?
+                        </AvatarFallback>
                       ) : (
                         <>
                           <AvatarImage src={getImageUrl(comment?.author?.profileImage)} />
@@ -495,61 +667,104 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
                         </>
                       )}
                     </Avatar>
+
                     <div className="flex-1">
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <div className="flex items-center justify-between mb-1">
+                      <div className="rounded-lg bg-gray-50 p-3">
+                        <div className="mb-1 flex items-center justify-between">
                           <div className="flex items-center space-x-2">
                             {comment?.isAnonymous ? (
                               <>
-                                <span className="font-medium text-sm italic text-gray-600">Anonymous</span>
-                                <Badge variant="secondary" className="text-xs bg-gray-200 text-gray-600">Anonymous</Badge>
+                                <span className="text-sm font-medium italic text-gray-600">
+                                  Anonymous
+                                </span>
+                                <Badge
+                                  variant="secondary"
+                                  className="bg-gray-200 text-xs text-gray-600"
+                                >
+                                  Anonymous
+                                </Badge>
                               </>
                             ) : (
                               <>
-                                <span className="font-medium text-sm">{getDisplayName(comment?.author)}</span>
-                                {comment?.author?.isAdmin && (
-                                  <>
-                                    {comment?.author?.isFounder ? (
-                                      <Badge variant="secondary" className="text-xs font-semibold border" style={{ background: 'linear-gradient(135deg, #CFD8DD, #D5D7EA, #CFD3D6)', color: '#8FA1B5', borderColor: '#CFD3D6' }}>
-                                        Founder
-                                      </Badge>
-                                    ) : (
-                                      <Badge variant="secondary" className="text-xs font-semibold bg-blue-100 text-blue-800 border-blue-200">
-                                        ���️ Moderator
-                                      </Badge>
-                                    )}
-                                  </>
-                                )}
+                                <span className="text-sm font-medium">
+                                  {getDisplayName(comment?.author)}
+                                </span>
+
+                                {renderAuthorityBadge(comment?.author)}
+
                                 {comment?.author?.politicalLeaning && (
-                                  <Badge variant="secondary" className={`text-xs ${getPoliticalIdentifierColor(comment.author.politicalLeaning)}`}>
+                                  <Badge
+                                    variant="secondary"
+                                    className={`text-xs ${getPoliticalIdentifierColor(
+                                      comment.author.politicalLeaning
+                                    )}`}
+                                  >
                                     {getPoliticalIdentifierLabel(comment.author.politicalLeaning)}
                                   </Badge>
                                 )}
+
                                 {comment?.isFromBluesky && (
-                                  <Badge variant="outline" className="text-xs bg-sky-50 text-sky-700 border-sky-300">
-                                    {comment?.atprotoAuthorHandle ? `@${comment.atprotoAuthorHandle} (Bluesky)` : 'From Bluesky'}
+                                  <Badge
+                                    variant="outline"
+                                    className="border-sky-300 bg-sky-50 text-xs text-sky-700"
+                                  >
+                                    {comment?.atprotoAuthorHandle
+                                      ? `@${comment.atprotoAuthorHandle} (Bluesky)`
+                                      : 'From Bluesky'}
                                   </Badge>
                                 )}
                               </>
                             )}
                           </div>
+
                           {canEditComment && !isEditingThisComment && (
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <Button variant="ghost" size="sm" onClick={() => { setEditingCommentId(comment?.id); setEditCommentText(comment?.content ?? '') }} className="h-6 px-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditingCommentId(comment?.id)
+                                    setEditCommentText(comment?.content ?? '')
+                                  }}
+                                  className="h-6 px-2"
+                                >
                                   <Edit2 className="h-3 w-3" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent><p>Edit comment</p></TooltipContent>
+                              <TooltipContent>
+                                <p>Edit comment</p>
+                              </TooltipContent>
                             </Tooltip>
                           )}
                         </div>
+
                         {isEditingThisComment ? (
                           <div className="space-y-2">
-                            <Textarea value={editCommentText} onChange={(e) => setEditCommentText(e.target.value)} className="min-h-[60px] resize-none text-sm" />
+                            <Textarea
+                              value={editCommentText}
+                              onChange={(e) => setEditCommentText(e.target.value)}
+                              className="min-h-[60px] resize-none text-sm"
+                            />
+
                             <div className="flex justify-end space-x-2">
-                              <Button variant="outline" size="sm" onClick={() => { setEditingCommentId(null); setEditCommentText('') }} disabled={isEditingComment}>Cancel</Button>
-                              <Button size="sm" onClick={() => handleEditComment(comment?.id)} disabled={!editCommentText?.trim() || isEditingComment}>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingCommentId(null)
+                                  setEditCommentText('')
+                                }}
+                                disabled={isEditingComment}
+                              >
+                                Cancel
+                              </Button>
+
+                              <Button
+                                size="sm"
+                                onClick={() => handleEditComment(comment?.id)}
+                                disabled={!editCommentText?.trim() || isEditingComment}
+                              >
                                 {isEditingComment ? 'Saving...' : 'Save'}
                               </Button>
                             </div>
@@ -558,38 +773,58 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
                           <>
                             {comment?.quotedText && (
                               <div className="mb-2">
-                                <QuoteDisplay quotedText={comment.quotedText} quotedAuthor={comment.quotedAuthor} />
+                                <QuoteDisplay
+                                  quotedText={comment.quotedText}
+                                  quotedAuthor={comment.quotedAuthor}
+                                />
                               </div>
                             )}
                             <p className="text-sm text-gray-900">{comment?.content}</p>
                           </>
                         )}
                       </div>
-                      <div className="flex items-center justify-between mt-1">
+
+                      <div className="mt-1 flex items-center justify-between">
                         <span className="text-xs text-gray-500">
                           {formatDistanceToNow(new Date(comment?.createdAt ?? new Date()))} ago
-                          {comment?.editedAt && <span className="text-xs text-gray-400 ml-2">(edited)</span>}
+                          {comment?.editedAt && (
+                            <span className="ml-2 text-xs text-gray-400">(edited)</span>
+                          )}
                         </span>
+
                         <TooltipProvider>
                           <div className="flex items-center space-x-2">
                             {reactionTypes?.slice(0, 3)?.map((reaction) => {
-                              const Icon = reaction.icon
+                              const Icon = reaction.icon ?? Frown
+
                               return (
                                 <Tooltip key={reaction.type}>
                                   <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="h-6 px-2"><Icon className="h-3 w-3" /></Button>
+                                    <Button variant="ghost" size="sm" className="h-6 px-2">
+                                      <Icon className="h-3 w-3" />
+                                    </Button>
                                   </TooltipTrigger>
-                                  <TooltipContent><p>{reaction.label}</p></TooltipContent>
+                                  <TooltipContent>
+                                    <p>{reaction.label}</p>
+                                  </TooltipContent>
                                 </Tooltip>
                               )
                             })}
+
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => handleQuoteComment(comment)}>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2"
+                                  onClick={() => handleQuoteComment(comment)}
+                                >
                                   <QuoteIcon className="h-3 w-3" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent><p>Quote & Reply</p></TooltipContent>
+                              <TooltipContent>
+                                <p>Quote & Reply</p>
+                              </TooltipContent>
                             </Tooltip>
                           </div>
                         </TooltipProvider>
@@ -600,10 +835,14 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
               })}
             </div>
 
-            <div className="pt-3 border-t border-gray-100 text-center">
+            <div className="border-t border-gray-100 pt-3 text-center">
               <p className="text-xs text-gray-400">
                 Enjoying the conversation?{' '}
-                <a href="/support" className="hover:underline font-medium" style={{ color: '#8FA1B5' }}>
+                <a
+                  href="/support"
+                  className="font-medium hover:underline"
+                  style={{ color: '#8FA1B5' }}
+                >
                   Support BTA →
                 </a>
               </p>
@@ -616,15 +855,38 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>Edit Post</DialogTitle>
-            <DialogDescription>Make changes to your post. Remember to maintain civil and respectful discourse.</DialogDescription>
+            <DialogDescription>
+              Make changes to your post. Remember to maintain civil and respectful discourse.
+            </DialogDescription>
           </DialogHeader>
+
           <div className="space-y-4 py-4">
-            <Textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} placeholder="What's on your mind?" className="min-h-[150px] resize-none" />
-            <p className="text-xs text-gray-500">Changes will be reviewed by our content moderation system to ensure compliance with community standards.</p>
+            <Textarea
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              placeholder="What's on your mind?"
+              className="min-h-[150px] resize-none"
+            />
+            <p className="text-xs text-gray-500">
+              Changes will be reviewed by our content moderation system to ensure compliance with
+              community standards.
+            </p>
           </div>
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowEditDialog(false); setEditContent(currentPost?.content ?? '') }} disabled={isEditing}>Cancel</Button>
-            <Button onClick={handleEdit} disabled={!editContent?.trim() || isEditing}>{isEditing ? 'Saving...' : 'Save Changes'}</Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowEditDialog(false)
+                setEditContent(currentPost?.content ?? '')
+              }}
+              disabled={isEditing}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleEdit} disabled={!editContent?.trim() || isEditing}>
+              {isEditing ? 'Saving...' : 'Save Changes'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -633,11 +895,19 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Post</AlertDialogTitle>
-            <AlertDialogDescription>Are you sure you want to delete this post? This action cannot be undone. All comments and reactions will also be permanently deleted.</AlertDialogDescription>
+            <AlertDialogDescription>
+              Are you sure you want to delete this post? This action cannot be undone. All comments
+              and reactions will also be permanently deleted.
+            </AlertDialogDescription>
           </AlertDialogHeader>
+
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700">
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
               {isDeleting ? 'Deleting...' : 'Delete Post'}
             </AlertDialogAction>
           </AlertDialogFooter>

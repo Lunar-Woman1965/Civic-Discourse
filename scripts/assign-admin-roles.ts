@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, UserRole } from "@prisma/client";
 import * as dotenv from "dotenv";
 
 dotenv.config();
@@ -15,7 +15,7 @@ async function assignAdminRoles() {
     const founder = await prisma.user.update({
       where: { email: founderEmail },
       data: {
-        role: "PLATFORM_FOUNDER",
+        role: UserRole.PLATFORM_FOUNDER,
         isAdmin: true,
         name: "Platform Founder",
       },
@@ -37,8 +37,8 @@ async function assignAdminRoles() {
     const moderator = await prisma.user.update({
       where: { email: moderatorEmail },
       data: {
-        role: "MODERATOR",
-        isAdmin: true,
+        role: UserRole.MODERATOR,
+        isAdmin: false,
       },
       select: {
         id: true,
@@ -62,7 +62,7 @@ async function assignAdminRoles() {
         },
       },
       data: {
-        role: "USER",
+        role: UserRole.USER,
       },
     });
 

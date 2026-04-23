@@ -1,4 +1,5 @@
 
+type Role = 'FOUNDER' | 'ADMIN' | 'MODERATOR' | 'MEMBER'
 import 'next-auth'
 import 'next-auth/jwt'
 

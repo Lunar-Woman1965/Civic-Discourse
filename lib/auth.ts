@@ -137,7 +137,7 @@ export function getAuthOptions(): NextAuthOptions {
           token.id = user.id;
           token.firstName = (user as any).firstName;
           token.lastName = (user as any).lastName;
-          token.isAdmin = (user as any).isAdmin;
+          token.isAdmin = Boolean((user as any).isAdmin);
           token.role = (user as any).role;
           token.image = user.image;
         }
@@ -148,7 +148,7 @@ export function getAuthOptions(): NextAuthOptions {
           session.user.id = token.id as string;
           session.user.firstName = token.firstName as string;
           session.user.lastName = token.lastName as string;
-          session.user.isAdmin = token.isAdmin as boolean;
+          session.user.isAdmin = Boolean(token.isAdmin);
           session.user.role = token.role as string;
           session.user.image = token.image as string;
         }

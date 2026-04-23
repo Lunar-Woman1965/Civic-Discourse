@@ -9,7 +9,7 @@ export async function requireAdmin() {
     return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), user: null }
   }
   
-  if (!user.isAdmin) {
+  if (!Boolean(user.isAdmin)) {
     return { error: NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 }), user: null }
   }
   
@@ -23,7 +23,7 @@ export async function requirePlatformFounder() {
     return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), user: null }
   }
   
-  if (!user.isAdmin) {
+  if (!Boolean(user.isAdmin)) {
     return { error: NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 }), user: null }
   }
   
