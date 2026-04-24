@@ -3,6 +3,38 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
+const profileSelect = {
+  id: true,
+  email: true,
+  name: true,
+  firstName: true,
+  lastName: true,
+  username: true,
+  bio: true,
+  profileImage: true,
+  useAvatar: true,
+  avatarStyle: true,
+  avatarSeed: true,
+  politicalLeaning: true,
+  civilityScore: true,
+  joinedAt: true,
+  emailVerified: true,
+  password: true,
+  role: true,
+  isFounder: true,
+  isAdmin: true,
+};
+
+function cleanProfileUser(user: any) {
+  const { password, ...userWithoutPasswordHash } = user;
+
+  return {
+    ...userWithoutPasswordHash,
+    isVerified: !!user.emailVerified,
+    password: password ? "exists" : null,
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -13,38 +45,15 @@ export async function GET(request: NextRequest) {
 
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        firstName: true,
-        lastName: true,
-        username: true,
-        bio: true,
-        profileImage: true,
-        useAvatar: true,
-        avatarStyle: true,
-        avatarSeed: true,
-        politicalLeaning: true,
-        civilityScore: true,
-        joinedAt: true,
-        emailVerified: true,
-        password: true,
-      },
+      select: profileSelect,
     });
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const { password, ...userWithoutPasswordHash } = user;
-
     return NextResponse.json({
-      user: {
-        ...userWithoutPasswordHash,
-        isVerified: !!user.emailVerified,
-        password: password ? "exists" : null,
-      },
+      user: cleanProfileUser(user),
     });
   } catch (error) {
     console.error("Profile fetch error:", error);
@@ -102,34 +111,11 @@ export async function PATCH(request: NextRequest) {
         bio: trimmedBio || undefined,
         politicalLeaning: politicalLeaning || undefined,
       },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        firstName: true,
-        lastName: true,
-        username: true,
-        bio: true,
-        profileImage: true,
-        useAvatar: true,
-        avatarStyle: true,
-        avatarSeed: true,
-        politicalLeaning: true,
-        civilityScore: true,
-        joinedAt: true,
-        emailVerified: true,
-        password: true,
-      },
+      select: profileSelect,
     });
 
-    const { password, ...userWithoutPasswordHash } = updatedUser;
-
     return NextResponse.json({
-      user: {
-        ...userWithoutPasswordHash,
-        isVerified: !!updatedUser.emailVerified,
-        password: password ? "exists" : null,
-      },
+      user: cleanProfileUser(updatedUser),
     });
   } catch (error) {
     console.error("Profile update error:", error);
