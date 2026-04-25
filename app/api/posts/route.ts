@@ -410,7 +410,38 @@ export async function GET(request: NextRequest) {
       skip: offset,
     })
 
-    return NextResponse.json(posts)
+  const normalizedPosts = posts.map((post: any) => ({
+  ...post,
+  author: post.author
+    ? {
+        ...post.author,
+        role:
+          post.author.role === "PLATFORM_FOUNDER" || post.author.isFounder
+            ? "PLATFORM_FOUNDER"
+            : post.author.role,
+        isFounder:
+          post.author.role === "PLATFORM_FOUNDER" || post.author.isFounder,
+      }
+    : post.author,
+  comments: post.comments?.map((comment: any) => ({
+    ...comment,
+    author: comment.author
+      ? {
+          ...comment.author,
+          role:
+            comment.author.role === "PLATFORM_FOUNDER" ||
+            comment.author.isFounder
+              ? "PLATFORM_FOUNDER"
+              : comment.author.role,
+          isFounder:
+            comment.author.role === "PLATFORM_FOUNDER" ||
+            comment.author.isFounder,
+        }
+      : comment.author,
+  })),
+}));
+
+return NextResponse.json(normalizedPosts);
   } catch (error) {
     console.error('Posts fetch error:', error)
     return NextResponse.json(
