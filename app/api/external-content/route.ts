@@ -8,6 +8,7 @@ import {
   generateBlueskyWebUrl,
   AuthorFeedResponse 
 } from '@/lib/bluesky-public-api';
+export const dynamic = "force-dynamic";
 
 // ========================================
 // CONFIGURATION - Bluesky Handles to Fetch
