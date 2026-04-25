@@ -1,5 +1,6 @@
 "use client";
 
+import { RoleBadge } from "@/components/role-badge";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -7,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -315,7 +315,7 @@ export default function ProfilePage() {
         const error = await response.json();
         toast.error(error.error || "Failed to deactivate account");
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to deactivate account");
     } finally {
       setIsDeactivating(false);
@@ -337,7 +337,7 @@ export default function ProfilePage() {
         const error = await response.json();
         toast.error(error.error || "Failed to delete account");
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to delete account");
     } finally {
       setIsDeleting(false);
@@ -416,22 +416,6 @@ export default function ProfilePage() {
     profile.name?.[0] ||
     "U";
 
-  const roleLabel =
-    profile.role === "PLATFORM_FOUNDER" || profile.isFounder
-      ? "Founder"
-      : profile.isAdmin
-        ? "Admin"
-        : profile.role === "MODERATOR"
-          ? "Moderator"
-          : null;
-
-  const roleBadgeClassName =
-    roleLabel === "Founder"
-      ? "border-amber-300 bg-amber-100 text-amber-900"
-      : roleLabel === "Admin"
-        ? "border-red-200 bg-red-100 text-red-800"
-        : "border-blue-200 bg-blue-100 text-blue-800";
-
   return (
     <div className="min-h-screen bg-background">
       <div className="container max-w-4xl mx-auto py-8 px-4">
@@ -448,15 +432,14 @@ export default function ProfilePage() {
           <div>
             <h1 className="text-3xl font-bold">My Profile</h1>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className="text-sm text-muted-foreground">{displayName}</span>
-              {roleLabel && (
-                <Badge
-                  variant="secondary"
-                  className={`font-semibold ${roleBadgeClassName}`}
-                >
-                  {roleLabel}
-                </Badge>
-              )}
+              <span className="text-sm text-muted-foreground">
+                {displayName}
+              </span>
+              <RoleBadge
+                role={profile.role}
+                isFounder={profile.isFounder}
+                isAdmin={profile.isAdmin}
+              />
             </div>
           </div>
 
@@ -486,6 +469,7 @@ export default function ProfilePage() {
                 Upload a photo or create a custom avatar
               </CardDescription>
             </CardHeader>
+
             <CardContent>
               <div className="flex flex-col items-center gap-6">
                 <div className="relative">
@@ -498,6 +482,7 @@ export default function ProfilePage() {
                       {avatarFallback.toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
+
                   {isUploadingPhoto && (
                     <div className="absolute inset-0 bg-background/80 rounded-full flex items-center justify-center">
                       <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -530,6 +515,7 @@ export default function ProfilePage() {
                         className="hidden"
                         disabled={isUploadingPhoto}
                       />
+
                       <Button
                         type="button"
                         variant="outline"
@@ -542,6 +528,7 @@ export default function ProfilePage() {
                         <Upload className="h-4 w-4 mr-2" />
                         {isUploadingPhoto ? "Uploading..." : "Choose Photo"}
                       </Button>
+
                       {profile.profileImage && !profile.useAvatar && (
                         <Button
                           type="button"
@@ -554,6 +541,7 @@ export default function ProfilePage() {
                           {isRemovingPhoto ? "Removing..." : "Remove Photo"}
                         </Button>
                       )}
+
                       <p className="text-xs text-muted-foreground text-center">
                         Max size: 5MB. Supports JPG, PNG, GIF
                       </p>
@@ -566,6 +554,7 @@ export default function ProfilePage() {
                       initialStyle={profile.avatarStyle || undefined}
                       initialSeed={profile.avatarSeed || undefined}
                     />
+
                     {profile.useAvatar && profile.avatarStyle && (
                       <div className="mt-4">
                         <Button
@@ -593,6 +582,7 @@ export default function ProfilePage() {
                 Update your personal information and political affiliation
               </CardDescription>
             </CardHeader>
+
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -602,7 +592,10 @@ export default function ProfilePage() {
                       id="firstName"
                       value={formData.firstName}
                       onChange={(e) =>
-                        setFormData({ ...formData, firstName: e.target.value })
+                        setFormData({
+                          ...formData,
+                          firstName: e.target.value,
+                        })
                       }
                       placeholder="Enter your first name"
                     />
@@ -614,7 +607,10 @@ export default function ProfilePage() {
                       id="lastName"
                       value={formData.lastName}
                       onChange={(e) =>
-                        setFormData({ ...formData, lastName: e.target.value })
+                        setFormData({
+                          ...formData,
+                          lastName: e.target.value,
+                        })
                       }
                       placeholder="Enter your last name"
                     />
@@ -641,7 +637,10 @@ export default function ProfilePage() {
                     id="username"
                     value={formData.username}
                     onChange={(e) =>
-                      setFormData({ ...formData, username: e.target.value })
+                      setFormData({
+                        ...formData,
+                        username: e.target.value,
+                      })
                     }
                     placeholder="Choose a username for privacy"
                   />
@@ -652,11 +651,16 @@ export default function ProfilePage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="politicalLeaning">Political Affiliation</Label>
+                  <Label htmlFor="politicalLeaning">
+                    Political Affiliation
+                  </Label>
                   <Select
                     value={formData.politicalLeaning}
                     onValueChange={(value) =>
-                      setFormData({ ...formData, politicalLeaning: value })
+                      setFormData({
+                        ...formData,
+                        politicalLeaning: value,
+                      })
                     }
                   >
                     <SelectTrigger>
@@ -679,7 +683,10 @@ export default function ProfilePage() {
                     id="bio"
                     value={formData.bio}
                     onChange={(e) =>
-                      setFormData({ ...formData, bio: e.target.value })
+                      setFormData({
+                        ...formData,
+                        bio: e.target.value,
+                      })
                     }
                     placeholder="Tell us about yourself..."
                     rows={4}
@@ -715,6 +722,7 @@ export default function ProfilePage() {
                   Update your password to keep your account secure
                 </CardDescription>
               </CardHeader>
+
               <CardContent>
                 <form onSubmit={handlePasswordChange} className="space-y-4">
                   <div className="space-y-2">
@@ -756,7 +764,9 @@ export default function ProfilePage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                    <Label htmlFor="confirmPassword">
+                      Confirm New Password
+                    </Label>
                     <Input
                       id="confirmPassword"
                       type="password"
@@ -799,20 +809,18 @@ export default function ProfilePage() {
             <CardHeader>
               <CardTitle>Account Information</CardTitle>
             </CardHeader>
+
             <CardContent className="space-y-4">
-              {roleLabel && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">
-                    Platform Role
-                  </span>
-                  <Badge
-                    variant="secondary"
-                    className={`font-semibold ${roleBadgeClassName}`}
-                  >
-                    {roleLabel}
-                  </Badge>
-                </div>
-              )}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">
+                  Platform Role
+                </span>
+                <RoleBadge
+                  role={profile.role}
+                  isFounder={profile.isFounder}
+                  isAdmin={profile.isAdmin}
+                />
+              </div>
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm">
@@ -851,6 +859,7 @@ export default function ProfilePage() {
                 Irreversible actions that will affect your account
               </CardDescription>
             </CardHeader>
+
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between p-4 border border-orange-200 rounded-lg bg-orange-50">
                 <div className="flex-1">
@@ -862,6 +871,7 @@ export default function ProfilePage() {
                     later by signing in again.
                   </p>
                 </div>
+
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button
@@ -872,6 +882,7 @@ export default function ProfilePage() {
                       Deactivate
                     </Button>
                   </AlertDialogTrigger>
+
                   <AlertDialogContent>
                     <AlertDialogHeader>
                       <AlertDialogTitle>
@@ -884,6 +895,7 @@ export default function ProfilePage() {
                         preserved.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
+
                     <AlertDialogFooter>
                       <AlertDialogCancel disabled={isDeactivating}>
                         Cancel
@@ -912,6 +924,7 @@ export default function ProfilePage() {
                     This action cannot be undone.
                   </p>
                 </div>
+
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="destructive">
@@ -919,6 +932,7 @@ export default function ProfilePage() {
                       Delete
                     </Button>
                   </AlertDialogTrigger>
+
                   <AlertDialogContent>
                     <AlertDialogHeader>
                       <AlertDialogTitle className="text-red-600">
@@ -943,6 +957,7 @@ export default function ProfilePage() {
                         </div>
                       </AlertDialogDescription>
                     </AlertDialogHeader>
+
                     <AlertDialogFooter>
                       <AlertDialogCancel disabled={isDeleting}>
                         Cancel

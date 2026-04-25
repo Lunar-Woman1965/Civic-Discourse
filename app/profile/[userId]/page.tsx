@@ -1,5 +1,6 @@
 "use client";
 
+import { RoleBadge } from "@/components/role-badge";
 import { useSession } from "next-auth/react";
 import { useRouter, useParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -42,7 +43,7 @@ interface UserProfileData {
   politicalLeaning: string | null;
   civilityScore: number;
   joinedAt: string;
-  role?: Role;
+  role?: Role | null;
   isFounder?: boolean;
   isAdmin?: boolean;
   isVerified: boolean;
@@ -93,13 +94,11 @@ export default function UserProfilePage() {
 
       if (response.status === 404) {
         setError("User not found");
-        setIsLoading(false);
         return;
       }
 
       if (response.status === 403) {
         setError("This profile is private");
-        setIsLoading(false);
         return;
       }
 
@@ -123,7 +122,9 @@ export default function UserProfilePage() {
 
       const response = await fetch("/api/friends/request", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ receiverId: userId }),
       });
 
@@ -135,37 +136,54 @@ export default function UserProfilePage() {
       toast.success("Friend request sent!");
       fetchUserProfile();
     } catch (error: any) {
-      toast.error(error.message);
+      toast.error(error.message || "Failed to send friend request");
     } finally {
       setIsSendingRequest(false);
     }
   };
 
+  const getProfilePhotoUrl = (path: string | null) => {
+    if (!path) return undefined;
+    return `/api/profile/photo/${encodeURIComponent(path)}`;
+  };
+
+  const getCurrentAvatarUrl = () => {
+    if (profile?.useAvatar && profile.avatarStyle && profile.avatarSeed) {
+      return generateAvatarDataUrl(profile.avatarStyle, profile.avatarSeed);
+    }
+
+    return getProfilePhotoUrl(profile?.profileImage || null);
+  };
+
   if (status === "loading" || isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-creamy-tan-50 to-white">
-        <Loader2 className="h-8 w-8 animate-spin text-creamy-tan-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
-  if (error) {
+  if (error || !profile) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-creamy-tan-50 to-white">
-        <div className="mx-auto max-w-4xl px-4 py-12">
-          <Button variant="ghost" onClick={() => router.back()} className="mb-6">
-            <ArrowLeft className="mr-2 h-4 w-4" />
+        <div className="container max-w-4xl mx-auto px-4 py-8">
+          <Button
+            variant="ghost"
+            onClick={() => router.back()}
+            className="mb-4"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
             Back
           </Button>
 
           <Card>
-            <CardContent className="p-12 text-center">
-              <Lock className="mx-auto mb-4 h-12 w-12 text-gray-400" />
-              <h2 className="mb-2 text-xl font-semibold">{error}</h2>
-              <p className="text-gray-600">
-                {error === "This profile is private"
-                  ? "This user has set their profile to private."
-                  : "The profile you're looking for could not be found."}
+            <CardContent className="py-12 text-center">
+              <Lock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <h1 className="text-2xl font-bold mb-2">
+                {error || "Profile unavailable"}
+              </h1>
+              <p className="text-muted-foreground">
+                This profile could not be loaded.
               </p>
             </CardContent>
           </Card>
@@ -174,170 +192,217 @@ export default function UserProfilePage() {
     );
   }
 
-  if (!profile) return null;
-
-  if (profile.friendshipStatus === "self") {
-    router.push("/profile");
-    return null;
-  }
-
   const displayName = getDisplayName(profile);
-  const avatarUrl =
-    profile.useAvatar && profile.avatarStyle && profile.avatarSeed
-      ? generateAvatarDataUrl(profile.avatarStyle, profile.avatarSeed)
-      : profile.profileImage || null;
+  const avatarFallback =
+    profile.firstName?.[0] ||
+    profile.username?.[0] ||
+    profile.name?.[0] ||
+    "U";
 
-  const roleLabel =
-    profile.role === "PLATFORM_FOUNDER" || profile.isFounder
-      ? "Founder"
-      : profile.isAdmin
-        ? "Admin"
-        : profile.role === "MODERATOR"
-          ? "Moderator"
-          : null;
-
-  const roleBadgeClassName =
-    roleLabel === "Founder"
-      ? "border-amber-300 bg-amber-100 text-amber-900"
-      : roleLabel === "Admin"
-        ? "border-red-200 bg-red-100 text-red-800"
-        : "border-blue-200 bg-blue-100 text-blue-800";
+  const isOwnProfile = session?.user?.id === profile.id;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-creamy-tan-50 to-white">
-      <div className="mx-auto max-w-4xl px-4 py-12">
-        <Button variant="ghost" onClick={() => router.back()} className="mb-6">
-          <ArrowLeft className="mr-2 h-4 w-4" />
+      <div className="container max-w-4xl mx-auto px-4 py-8">
+        <Button variant="ghost" onClick={() => router.back()} className="mb-4">
+          <ArrowLeft className="h-4 w-4 mr-2" />
           Back
         </Button>
 
-        <Card className="rounded-lg p-4 shadow-md">
-          <CardHeader className="pb-2 text-center">
-            <div className="flex flex-col items-center gap-4">
-              <Avatar className="h-32 w-32 border-4 border-creamy-tan-200">
-                <AvatarImage src={avatarUrl || undefined} />
-                <AvatarFallback className="bg-creamy-tan-100 text-2xl">
-                  {displayName.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
+        <Card className="mb-6">
+          <CardContent className="pt-6">
+            <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                <Avatar className="h-24 w-24">
+                  <AvatarImage src={getCurrentAvatarUrl()} alt={displayName} />
+                  <AvatarFallback className="text-2xl">
+                    {avatarFallback.toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
 
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center justify-center gap-3">
-                  <h1 className="text-3xl font-bold text-gray-900">{displayName}</h1>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="text-3xl font-bold">{displayName}</h1>
 
-                  {profile.isVerified && <Shield className="h-6 w-6 text-blue-500" />}
+                    <RoleBadge
+                      role={profile.role}
+                      isFounder={profile.isFounder}
+                      isAdmin={profile.isAdmin}
+                    />
 
-                  {roleLabel && (
-                    <Badge
-                      variant="secondary"
-                      className={`font-semibold ${roleBadgeClassName}`}
-                    >
-                      {roleLabel}
-                    </Badge>
+                    {profile.isVerified && (
+                      <Badge
+                        variant="secondary"
+                        className="font-semibold border-green-200 bg-green-100 text-green-800"
+                      >
+                        <Shield className="h-3 w-3 mr-1" />
+                        Verified
+                      </Badge>
+                    )}
+                  </div>
+
+                  {profile.username && (
+                    <p className="text-muted-foreground mt-1">
+                      @{profile.username}
+                    </p>
                   )}
 
                   {profile.politicalLeaning && (
                     <Badge
-                      className={`${getPoliticalIdentifierColor(
+                      variant="outline"
+                      className={`mt-3 ${getPoliticalIdentifierColor(
                         profile.politicalLeaning
-                      )} text-white`}
+                      )}`}
                     >
                       {getPoliticalLeaningLabel(profile.politicalLeaning)}
                     </Badge>
                   )}
                 </div>
-
-                {profile.bio && (
-                  <p className="mx-auto max-w-2xl text-gray-600">{profile.bio}</p>
-                )}
-
-                <div className="flex flex-wrap items-center justify-center gap-3">
-                  <Badge variant="outline" className="flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    Joined {new Date(profile.joinedAt).toLocaleDateString()}
-                  </Badge>
-
-                  {profile.atprotoHandle && (
-                    <Badge
-                      variant="outline"
-                      className="flex cursor-pointer items-center gap-1 hover:bg-accent"
-                      onClick={() =>
-                        window.open(
-                          `https://bsky.app/profile/${profile.atprotoHandle}`,
-                          "_blank"
-                        )
-                      }
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                      @{profile.atprotoHandle}
-                    </Badge>
-                  )}
-                </div>
               </div>
 
-              {profile.friendshipStatus === "none" && (
-                <Button
-                  onClick={handleSendFriendRequest}
-                  disabled={isSendingRequest}
-                  className="mt-4"
-                >
-                  {isSendingRequest ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              {!isOwnProfile && (
+                <div className="flex flex-col gap-2">
+                  {profile.friendshipStatus === "ACCEPTED" ? (
+                    <Button variant="outline" disabled>
+                      <UserCheck className="h-4 w-4 mr-2" />
+                      Friends
+                    </Button>
+                  ) : profile.friendshipStatus === "PENDING" ? (
+                    <Button variant="outline" disabled>
+                      Request Pending
+                    </Button>
                   ) : (
-                    <UserPlus className="mr-2 h-4 w-4" />
+                    <Button
+                      onClick={handleSendFriendRequest}
+                      disabled={isSendingRequest}
+                    >
+                      {isSendingRequest ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <UserPlus className="h-4 w-4 mr-2" />
+                      )}
+                      Add Friend
+                    </Button>
                   )}
-                  Send Friend Request
-                </Button>
-              )}
-
-              {profile.friendshipStatus === "pending" && (
-                <Badge variant="secondary" className="mt-4">
-                  Friend Request Pending
-                </Badge>
-              )}
-
-              {profile.friendshipStatus === "accepted" && (
-                <Badge className="mt-4 bg-green-500 hover:bg-green-600">
-                  <UserCheck className="mr-1 h-3 w-3" />
-                  Friends
-                </Badge>
+                </div>
               )}
             </div>
-          </CardHeader>
+
+            {profile.bio && (
+              <p className="mt-6 whitespace-pre-wrap text-sm leading-6">
+                {profile.bio}
+              </p>
+            )}
+
+            <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Joined{" "}
+                {new Date(profile.joinedAt).toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </div>
+
+              {profile.atprotoHandle && (
+                <a
+                  href={`https://bsky.app/profile/${profile.atprotoHandle}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 hover:text-primary"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  {profile.atprotoHandle}
+                </a>
+              )}
+            </div>
+          </CardContent>
         </Card>
 
-        {profile.posts.length > 0 && (
-          <Card className="mt-6">
+        <div className="grid gap-6">
+          <Card>
             <CardHeader>
-              <h2 className="text-xl font-semibold">Recent Posts</h2>
-              <p className="text-sm text-gray-500">
-                Click on any post to view and interact with it
-              </p>
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold">Account Information</h2>
+              </div>
             </CardHeader>
+
             <CardContent className="space-y-4">
-              {profile.posts.map((post) => (
-                <Card
-                  key={post.id}
-                  className="cursor-pointer p-4 transition-shadow duration-200 hover:border-creamy-tan-300 hover:shadow-lg"
-                  onClick={() => router.push(`/dashboard?postId=${post.id}`)}
-                >
-                  <p className="mb-3 text-gray-800">
-                    {post.content.length > 200
-                      ? `${post.content.substring(0, 200)}...`
-                      : post.content}
-                  </p>
-                  <div className="flex items-center gap-4 text-sm text-gray-500">
-                    <span>{new Date(post.createdAt).toLocaleDateString()}</span>
-                    <span>•</span>
-                    <span>{post._count.reactions} reactions</span>
-                    <span>•</span>
-                    <span>{post._count.comments} comments</span>
-                  </div>
-                </Card>
-              ))}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">
+                  Platform Role
+                </span>
+
+                <RoleBadge
+                  role={profile.role}
+                  isFounder={profile.isFounder}
+                  isAdmin={profile.isAdmin}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">
+                  Civility Score
+                </span>
+                <span className="font-medium">{profile.civilityScore}</span>
+              </div>
+
+              {profile.politicalLeaning && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">
+                    Political Affiliation
+                  </span>
+                  <span className="font-medium">
+                    {getPoliticalLeaningLabel(profile.politicalLeaning)}
+                  </span>
+                </div>
+              )}
             </CardContent>
           </Card>
-        )}
+
+          <Card>
+            <CardHeader>
+              <h2 className="text-xl font-semibold">Recent Posts</h2>
+            </CardHeader>
+
+            <CardContent>
+              {profile.posts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  This user has not posted yet.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {profile.posts.map((post) => (
+                    <div
+                      key={post.id}
+                      className="rounded-lg border bg-white p-4 shadow-sm"
+                    >
+                      <p className="whitespace-pre-wrap text-sm leading-6">
+                        {post.content}
+                      </p>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                        <span>
+                          {new Date(post.createdAt).toLocaleDateString(
+                            "en-US",
+                            {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            }
+                          )}
+                        </span>
+                        <span>{post._count.reactions} reactions</span>
+                        <span>{post._count.comments} comments</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
