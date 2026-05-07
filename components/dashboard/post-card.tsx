@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import {
+  import { RoleBadge } from '@/components/role-badge'
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -62,6 +63,7 @@ import { QuoteDisplay } from './quote-display'
 import { MentionTextarea } from './mention-textarea'
 import { Quote as QuoteIcon } from 'lucide-react'
 import BlueskyControls from './bluesky-controls'
+import { RoleBadge } from '../role-badge'
 
 interface PostCardProps {
   post: any
@@ -303,49 +305,16 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
 
   const canDeletePost = post?.authorId === currentUser?.id || Boolean(currentUser?.isAdmin)
   const canEditPost = post?.authorId === currentUser?.id
-
-  const renderAuthorityBadge = (author: any) => {
+const renderAuthorityBadge = (author: any) => {
   if (!author) return null;
 
-  if (author?.isFounder || author?.role === "PLATFORM_FOUNDER") {
-    return (
-      <Badge
-        variant="secondary"
-        className="text-xs font-semibold border"
-        style={{
-          background: "linear-gradient(135deg, #CFD8DD, #D5D7EA, #CFD3D6)",
-          color: "#8FA1B5",
-          borderColor: "#CFD3D6",
-        }}
-      >
-        Founder
-      </Badge>
-    );
-  }
-
-  if (author?.role === "ADMIN" || author?.isAdmin) {
-    return (
-      <Badge
-        variant="secondary"
-        className="text-xs font-semibold bg-red-100 text-red-800 border-red-200"
-      >
-        Admin
-      </Badge>
-    );
-  }
-
-  if (author?.role === "MODERATOR") {
-    return (
-      <Badge
-        variant="secondary"
-        className="text-xs font-semibold bg-blue-100 text-blue-800 border-blue-200"
-      >
-        Moderator
-      </Badge>
-    );
-  }
-
-  return null;
+  return (
+    <RoleBadge
+      role={author?.role}
+      isFounder={author?.isFounder}
+      isAdmin={author?.isAdmin}
+    />
+  );
 };
 
   return (
