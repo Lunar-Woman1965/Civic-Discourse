@@ -81,8 +81,8 @@ model User {
   dataCollectionConsent Boolean @default(false)
 
   role                UserRole @default(USER)
-  isAdmin             Boolean  @default(false)
-  isFounder           Boolean  @default(false)
+  isFounder             Boolean  @default(false)
+  isAdmin           Boolean  @default(false)
   isActive            Boolean  @default(true)
   isSuspended         Boolean  @default(false)
   suspendedUntil      DateTime?

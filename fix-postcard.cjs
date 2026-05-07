@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { RoleBadge } from '@/components/role-badge'
 import {
   Tooltip,
   TooltipContent,
@@ -58,305 +59,441 @@ import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import Image from 'next/image'
 import { getPoliticalIdentifierColor, getPoliticalIdentifierLabel } from '@/lib/political-utils'
-import { getImageUrl } from '@/lib/utils'
-import { getDisplayName, getAvatarFallback } from '@/lib/display-name-utils'
-import { QuoteDisplay } from './quote-display'
-import { MentionTextarea } from './mention-textarea'
-import { Quote as QuoteIcon } from 'lucide-react'
-import BlueskyControls from './bluesky-controls'
+import { getImageUrl } from '@/lib/image-utils'
+import { useRouter } from 'next/navigation'
 
 interface PostCardProps {
   post: any
-  currentUser: any
-  onDelete?: (postId: string) => void
-  isHighlighted?: boolean
+  currentUser?: any
+  showCommunity?: boolean
+  onPostUpdated?: () => void
+  onPostDeleted?: () => void
 }
 
-export default function PostCard({ post, currentUser, onDelete, isHighlighted }: PostCardProps) {
+const reactionIcons = {
+  LIKE: ThumbsUp,
+  DISLIKE: ThumbsDown,
+  RESPECT: HeartHandshake,
+  CONCERNED: Frown,
+  ANGRY: Flame,
+  RIP: Skull,
+}
+
+const reactionLabels = {
+  LIKE: 'Like',
+  DISLIKE: 'Dislike',
+  RESPECT: 'Respect',
+  CONCERNED: 'Concerned',
+  ANGRY: 'Angry',
+  RIP: 'RIP',
+}
+
+const reactionColors = {
+  LIKE: 'text-blue-600 hover:bg-blue-50',
+  DISLIKE: 'text-gray-600 hover:bg-gray-50',
+  RESPECT: 'text-green-600 hover:bg-green-50',
+  CONCERNED: 'text-yellow-600 hover:bg-yellow-50',
+  ANGRY: 'text-red-600 hover:bg-red-50',
+  RIP: 'text-purple-600 hover:bg-purple-50',
+}
+
+export function PostCard({ post, currentUser, showCommunity = true, onPostUpdated, onPostDeleted }: PostCardProps) {
+  const router = useRouter()
+  const [comments, setComments] = useState(post.comments || [])
+  const [newComment, setNewComment] = useState('')
   const [showComments, setShowComments] = useState(false)
-  const [commentText, setCommentText] = useState('')
-  const [reactions, setReactions] = useState(post?.reactions ?? [])
-  const [comments, setComments] = useState(post?.comments ?? [])
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false)
+  const [reactions, setReactions] = useState(post.reactions || [])
+  const [userReaction, setUserReaction] = useState(
+    post.reactions?.find((r: any) => r.userId === currentUser?.id)?.type || null
+  )
+  const [showReactionMenu, setShowReactionMenu] = useState(false)
+  const [showFlagDialog, setShowFlagDialog] = useState(false)
+  const [flagReason, setFlagReason] = useState('')
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [showEditDialog, setShowEditDialog] = useState(false)
-  const [editContent, setEditContent] = useState(post?.content ?? '')
-  const [isEditing, setIsEditing] = useState(false)
-  const [currentPost, setCurrentPost] = useState(post)
-  const [editingCommentId, setEditingCommentId] = useState(null)
-  const [editCommentText, setEditCommentText] = useState('')
-  const [isEditingComment, setIsEditingComment] = useState(false)
-  const [quotedText, setQuotedText] = useState(null)
-  const [quotedAuthorId, setQuotedAuthorId] = useState(null)
-  const [replyingToCommentId, setReplyingToCommentId] = useState(null)
 
-  useEffect(() => {
-    if (isHighlighted) {
-      setShowComments(true)
+  const getDisplayName = (user: any) => {
+    if (!user) return 'Unknown User'
+    return user.pseudonym || user.name || 'Anonymous User'
+  }
+
+  const canDeletePost = currentUser && (
+    currentUser.id === post.authorId ||
+    currentUser.isAdmin ||
+    currentUser.role === 'PLATFORM_FOUNDER' ||
+    currentUser.role === 'MODERATOR'
+  )
+
+  const getReactionCounts = () => {
+    const counts: Record<string, number> = {}
+    reactions.forEach((reaction: any) => {
+      counts[reaction.type] = (counts[reaction.type] || 0) + 1
+    })
+    return counts
+  }
+
+  const handleReaction = async (type: string) => {
+    if (!currentUser) {
+      toast.error('Please sign in to react')
+      return
     }
-  }, [isHighlighted])
 
-  const reactionTypes = [
-    { type: 'like', icon: ThumbsUp, label: 'Like', color: 'text-green-500' },
-    { type: 'dislike', icon: ThumbsDown, label: 'Dislike', color: 'text-red-500' },
-    { type: 'care', icon: HeartHandshake, label: 'Care/Support', color: 'text-pink-500' },
-    { type: 'mad', icon: Frown, label: 'Mad', color: 'text-orange-500' },
-    { type: 'angry', icon: Flame, label: 'Angry', color: 'text-red-600' },
-    { type: 'horrified', icon: Skull, label: 'Horrified', color: 'text-gray-700' }
-  ]
-
-  const handleReaction = async (reactionType) => {
     try {
-      const response = await fetch('/api/posts/react', {
+      const response = await fetch('/api/reactions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postId: post?.id, type: reactionType })
+        body: JSON.stringify({ postId: post.id, type }),
       })
-      if (response.ok) {
-        const existingReaction = reactions?.find((r) => r?.userId === currentUser?.id && r?.postId === post?.id)
-        if (existingReaction) {
-          if (existingReaction.type === reactionType) {
-            setReactions(reactions?.filter((r) => r?.id !== existingReaction.id))
-          } else {
-            setReactions(reactions?.map((r) => r?.id === existingReaction.id ? { ...r, type: reactionType } : r))
-          }
-        } else {
-          setReactions([...reactions, { id: Date.now().toString(), type: reactionType, userId: currentUser?.id, postId: post?.id, user: { id: currentUser?.id, name: currentUser?.name } }])
-        }
-        toast.success('Reaction added!')
+
+      if (!response.ok) throw new Error('Failed to react')
+
+      const data = await response.json()
+      
+      if (userReaction === type) {
+        setUserReaction(null)
+        setReactions(reactions.filter((r: any) => !(r.userId === currentUser.id && r.type === type)))
+      } else {
+        setUserReaction(type)
+        const filteredReactions = reactions.filter((r: any) => r.userId !== currentUser.id)
+        setReactions([...filteredReactions, data.reaction])
       }
+      
+      setShowReactionMenu(false)
     } catch (error) {
       toast.error('Failed to react')
     }
   }
 
-  const handleComment = async (e) => {
-    e.preventDefault()
-    if (!commentText?.trim() || isSubmitting) return
-    setIsSubmitting(true)
+  const handleComment = async () => {
+    if (!currentUser) {
+      toast.error('Please sign in to comment')
+      return
+    }
+
+    if (!newComment.trim()) {
+      toast.error('Please enter a comment')
+      return
+    }
+
+    setIsSubmittingComment(true)
+
     try {
-      const response = await fetch('/api/posts/comment', {
+      const response = await fetch(\`/api/posts/\${post.id}/comments\`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postId: post?.id, content: commentText, parentId: replyingToCommentId, quotedText, quotedAuthorId })
+        body: JSON.stringify({ content: newComment.trim() }),
       })
-      if (response.ok) {
-        const newComment = await response.json()
-        setComments([newComment, ...comments])
-        setCommentText('')
-        setQuotedText(null)
-        setQuotedAuthorId(null)
-        setReplyingToCommentId(null)
-        toast.success('Comment posted!')
-      }
+
+      if (!response.ok) throw new Error('Failed to comment')
+
+      const comment = await response.json()
+      setComments([...comments, comment])
+      setNewComment('')
+      toast.success('Comment added')
     } catch (error) {
-      toast.error('Failed to post comment')
+      toast.error('Failed to add comment')
     } finally {
-      setIsSubmitting(false)
+      setIsSubmittingComment(false)
     }
   }
 
-  const handleQuotePost = () => {
-    const selection = window.getSelection()
-    const selectedText = selection?.toString().trim()
-    if (selectedText && selectedText.length > 0) {
-      setQuotedText(selectedText)
-      setQuotedAuthorId(currentPost?.authorId)
-    } else {
-      setQuotedText((currentPost?.content || '').substring(0, 200))
-      setQuotedAuthorId(currentPost?.authorId)
+  const handleFlag = async () => {
+    if (!currentUser) {
+      toast.error('Please sign in to flag content')
+      return
     }
-    setShowComments(true)
-  }
 
-  const handleQuoteComment = (comment) => {
-    const selection = window.getSelection()
-    const selectedText = selection?.toString().trim()
-    if (selectedText && selectedText.length > 0) {
-      setQuotedText(selectedText)
-    } else {
-      setQuotedText((comment?.content || '').substring(0, 200))
+    if (!flagReason.trim()) {
+      toast.error('Please provide a reason')
+      return
     }
-    setQuotedAuthorId(comment?.authorId)
-    setReplyingToCommentId(comment?.id)
-    setShowComments(true)
-  }
 
-  const clearQuote = () => {
-    setQuotedText(null)
-    setQuotedAuthorId(null)
-    setReplyingToCommentId(null)
+    try {
+      const response = await fetch('/api/flags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId: post.id, reason: flagReason.trim() }),
+      })
+
+      if (!response.ok) throw new Error('Failed to flag')
+
+      toast.success('Post flagged for review')
+      setShowFlagDialog(false)
+      setFlagReason('')
+    } catch (error) {
+      toast.error('Failed to flag post')
+    }
   }
 
   const handleDelete = async () => {
+    if (!canDeletePost) return
+
     setIsDeleting(true)
+
     try {
-      const response = await fetch(\`/api/posts/\${post?.id}/delete\`, { method: 'DELETE' })
-      if (response.ok) {
-        toast.success('Post deleted successfully!')
-        setShowDeleteDialog(false)
-        if (onDelete) onDelete(post?.id)
-        window.location.reload()
-      } else {
-        const error = await response.json()
-        toast.error(error.error || 'Failed to delete post')
-      }
+      const response = await fetch(\`/api/posts/\${post.id}\`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) throw new Error('Failed to delete post')
+
+      toast.success('Post deleted')
+      onPostDeleted?.()
     } catch (error) {
       toast.error('Failed to delete post')
     } finally {
       setIsDeleting(false)
+      setShowDeleteDialog(false)
     }
   }
-                  {canDeletePost && (
-                    <DropdownMenuItem onClick={() => setShowDeleteDialog(true)} className="text-red-600 focus:text-red-600">
-                      <Trash2 className="h-4 w-4 mr-2" />Delete Post
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+
+  const reactionCounts = getReactionCounts()
+
+  return (
+    <Card className="w-full">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between">
+          <div className="flex items-start space-x-3">
+            <Avatar className="h-10 w-10">
+              <AvatarImage src={post.isAnonymous ? undefined : post.author?.image} />
+              <AvatarFallback>
+                {post.isAnonymous ? '?' : getDisplayName(post.author).charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            
+            <div className="flex-1">
+              <div className="flex items-center space-x-2 mb-1">
+                {post.isAnonymous ? (
+                  <>
+                    <span className="font-semibold italic text-gray-600">Anonymous</span>
+                    <Badge variant="secondary" className="text-xs bg-gray-200 text-gray-600">
+                      Anonymous
+                    </Badge>
+                  </>
+                ) : (
+                  <>
+                    <span className="font-semibold">{getDisplayName(post.author)}</span>
+                    <RoleBadge
+                      role={post.author?.role}
+                      isFounder={post.author?.isFounder}
+                      isAdmin={post.author?.isAdmin}
+                    />
+                    {post.author?.politicalLeaning && (
+                      <Badge
+                        variant="secondary"
+                        className={\`text-xs \${getPoliticalIdentifierColor(post.author.politicalLeaning)}\`}
+                      >
+                        {getPoliticalIdentifierLabel(post.author.politicalLeaning)}
+                      </Badge>
+                    )}
+                  </>
+                )}
+              </div>
+              
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <span>{formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}</span>
+                {showCommunity && post.community && (
+                  <>
+                    <span>•</span>
+                    <span>in {post.community.name}</span>
+                  </>
+                )}
+                {post.isPinned && (
+                  <>
+                    <span>•</span>
+                    <div className="flex items-center space-x-1 text-blue-600">
+                      <Pin className="h-3 w-3" />
+                      <span>Pinned</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {post.sourceUrl && (
+                <DropdownMenuItem asChild>
+                  <a href={post.sourceUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    View Source
+                  </a>
+                </DropdownMenuItem>
+              )}
+              {currentUser && (
+                <DropdownMenuItem onClick={() => setShowFlagDialog(true)}>
+                  <Flag className="h-4 w-4 mr-2" />
+                  Flag Post
+                </DropdownMenuItem>
+              )}
+              {canDeletePost && (
+                <DropdownMenuItem
+                  onClick={() => setShowDeleteDialog(true)}
+                  className="text-red-600"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Post
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4">
-        {currentPost?.quotedText && (
-          <QuoteDisplay quotedText={currentPost.quotedText} quotedAuthor={currentPost.quotedAuthor} />
-        )}
-        <div className="prose prose-sm max-w-none">
-          <p className="text-gray-900 whitespace-pre-wrap">{currentPost?.content}</p>
-        </div>
-        {currentPost?.imageUrl && (
-          <div className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden">
-            <Image src={currentPost.imageUrl} alt="Post image" fill className="object-cover" sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" />
+      <CardContent className="pt-0">
+        <div className="space-y-4">
+          {post.title && (
+            <h3 className="font-semibold text-lg leading-tight">{post.title}</h3>
+          )}
+          
+          <div className="prose prose-sm max-w-none">
+            <p className="whitespace-pre-wrap">{post.content}</p>
           </div>
-        )}
-        {currentPost?.sourceCitation && (
-          <div className="p-3 bg-turquoise-50 rounded-lg border-l-4 border-turquoise-500">
-            <div className="flex items-center space-x-2">
-              <ExternalLink className="h-4 w-4 text-turquoise-600" />
-              <span className="text-sm font-medium text-turquoise-900">Source:</span>
-            </div>
-            <a href={currentPost.sourceCitation} target="_blank" rel="noopener noreferrer" className="text-sm text-turquoise-700 hover:underline break-all">
-              {currentPost.sourceCitation}
-            </a>
-          </div>
-        )}
-        {currentPost?.politicalTags?.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {currentPost.politicalTags.map((tag, index) => (
-              <Badge key={index} variant="outline" className="text-xs">#{tag}</Badge>
-            ))}
-          </div>
-        )}
-        <div className="flex items-center justify-between pt-3 border-t">
-          <TooltipProvider>
-            <div className="flex items-center space-x-2">
-              {reactionTypes?.map((reaction) => {
-                const Icon = reaction.icon
-                const count = reactions?.filter((r) => r?.type === reaction.type)?.length ?? 0
-                const isActive = userReaction?.type === reaction.type
-                return (
-                  <Tooltip key={reaction.type}>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="sm" onClick={() => handleReaction(reaction.type)} className={\`flex items-center space-x-1 \${isActive ? reaction.color : 'text-gray-600 hover:text-gray-900'}\`}>
-                        <Icon className="h-4 w-4" />
-                        {count > 0 && <span className="text-xs">{count}</span>}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent><p>{reaction.label}</p></TooltipContent>
-                  </Tooltip>
-                )
-              })}
-            </div>
-          </TooltipProvider>
-          <div className="flex items-center space-x-4">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" onClick={() => setShowComments(!showComments)} className="flex items-center space-x-1">
-                  <MessageCircle className="h-4 w-4" />
-                  <span className="text-xs">{post?._count?.comments ?? 0}</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent><p>Comment</p></TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" onClick={handleQuotePost} className="flex items-center space-x-1">
-                  <QuoteIcon className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent><p>Quote & Reply</p></TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm"><Flag className="h-4 w-4" /></Button>
-              </TooltipTrigger>
-              <TooltipContent><p>Report</p></TooltipContent>
-            </Tooltip>
-          </div>
-        </div>
 
-        {currentUser && (
-          <div className="border-t pt-3 mt-3">
-            <BlueskyControls
-              postId={currentPost?.id}
-              postAuthorId={currentPost?.authorId}
-              currentUserId={currentUser?.id}
-              postContent={currentPost?.content || ''}
-              atprotoUri={currentPost?.atprotoUri}
-              atprotoBroadcastedAt={currentPost?.atprotoBroadcastedAt}
-              atprotoSyncedAt={currentPost?.atprotoSyncedAt}
-              atprotoLikeCount={currentPost?.atprotoLikeCount}
-              atprotoRepostCount={currentPost?.atprotoRepostCount}
-              atprotoReplyCount={currentPost?.atprotoReplyCount}
-              atprotoEngagementSyncedAt={currentPost?.atprotoEngagementSyncedAt}
-              onBroadcastSuccess={() => window.location.reload()}
-              onSyncSuccess={() => window.location.reload()}
-            />
-          </div>
-        )}
+          {post.imageUrl && (
+            <div className="relative rounded-lg overflow-hidden">
+              <Image
+                src={getImageUrl(post.imageUrl)}
+                alt="Post image"
+                width={600}
+                height={400}
+                className="w-full h-auto object-cover"
+              />
+            </div>
+          )}
 
-        {showComments && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ duration: 0.3 }} className="border-t pt-4 space-y-4">
-            <form onSubmit={handleComment} className="flex space-x-3">
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={getImageUrl(currentUser?.profileImage) || getImageUrl(currentUser?.image)} />
-                <AvatarFallback>{getAvatarFallback(currentUser)}</AvatarFallback>
-              </Avatar>
-              <div className="flex-1 space-y-2">
-                {quotedText && (
-                  <div className="relative">
-                    <QuoteDisplay quotedText={quotedText} quotedAuthor={quotedAuthorId === currentPost?.authorId ? currentPost?.author : comments?.find((c) => c?.authorId === quotedAuthorId)?.author} />
-                    <Button type="button" variant="ghost" size="sm" onClick={clearQuote} className="absolute top-2 right-2">Clear</Button>
-                  </div>
-                )}
-                <MentionTextarea placeholder="Share your thoughts respectfully... (use @ to mention someone)" value={commentText} onChange={setCommentText} className="min-h-[60px] resize-none" minRows={2} />
-                <div className="flex justify-end">
-                  <Button type="submit" size="sm" disabled={!commentText?.trim() || isSubmitting}>
-                    {isSubmitting ? 'Posting...' : 'Comment'}
+          {post.sourceUrl && (
+            <div className="border rounded-lg p-3 bg-gray-50">
+              <a
+                href={post.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center space-x-2 text-blue-600 hover:text-blue-800"
+              >
+                <ExternalLink className="h-4 w-4" />
+                <span className="text-sm">View source</span>
+              </a>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between pt-2 border-t">
+            <div className="flex items-center space-x-2">
+              <TooltipProvider>
+                <div className="relative">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowReactionMenu(!showReactionMenu)}
+                    className={userReaction ? reactionColors[userReaction as keyof typeof reactionColors] : ''}
+                  >
+                    {userReaction ? (
+                      <>
+                        {(() => {
+                          const Icon = reactionIcons[userReaction as keyof typeof reactionIcons]
+                          return <Icon className="h-4 w-4 mr-1" />
+                        })()}
+                        {reactionLabels[userReaction as keyof typeof reactionLabels]}
+                      </>
+                    ) : (
+                      <>
+                        <ThumbsUp className="h-4 w-4 mr-1" />
+                        React
+                      </>
+                    )}
                   </Button>
-                </div>
-              </div>
-            </form>
 
-            <div className="space-y-4">
-              {comments?.map((comment) => {
-                const isEditingThisComment = editingCommentId === comment?.id
-                const canEditComment = comment?.authorId === currentUser?.id
-                return (
-                  <div key={comment?.id} className="flex space-x-3">
+                  {showReactionMenu && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="absolute bottom-full left-0 mb-2 bg-white border rounded-lg shadow-lg p-2 flex space-x-1 z-10"
+                    >
+                      {Object.entries(reactionIcons).map(([type, Icon]) => (
+                        <Tooltip key={type}>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleReaction(type)}
+                              className={\`h-8 w-8 p-0 \${reactionColors[type as keyof typeof reactionColors]}\`}
+                            >
+                              <Icon className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {reactionLabels[type as keyof typeof reactionLabels]}
+                          </TooltipContent>
+                        </Tooltip>
+                      ))}
+                    </motion.div>
+                  )}
+                </div>
+              </TooltipProvider>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowComments(!showComments)}
+              >
+                <MessageCircle className="h-4 w-4 mr-1" />
+                {comments.length}
+              </Button>
+            </div>
+
+            {Object.entries(reactionCounts).length > 0 && (
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                {Object.entries(reactionCounts).map(([type, count]) => {
+                  const Icon = reactionIcons[type as keyof typeof reactionIcons]
+                  return (
+                    <div key={type} className="flex items-center space-x-1">
+                      <Icon className="h-3 w-3" />
+                      <span>{count as number}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {showComments && (
+            <div className="space-y-4 pt-4 border-t">
+              {currentUser && (
+                <div className="space-y-2">
+                  <Textarea
+                    placeholder="Write a comment..."
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    rows={3}
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={handleComment}
+                      disabled={isSubmittingComment || !newComment.trim()}
+                      size="sm"
+                    >
+                      {isSubmittingComment ? 'Posting...' : 'Post Comment'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                {comments.map((comment: any) => (
+                  <div key={comment.id} className="flex space-x-3">
                     <Avatar className="h-8 w-8">
-                      {comment?.isAnonymous ? (
-                        <AvatarFallback className="bg-gray-300 text-gray-600 text-xs">?</AvatarFallback>
-                      ) : (
-                        <>
-                          <AvatarImage src={getImageUrl(comment?.author?.profileImage)} />
-                          <AvatarFallback>{getAvatarFallback(comment?.author)}</AvatarFallback>
-                        </>
-                      )}
+                      <AvatarImage src={comment.isAnonymous ? undefined : comment.author?.image} />
+                      <AvatarFallback className="text-xs">
+                        {comment.isAnonymous ? '?' : getDisplayName(comment.author).charAt(0).toUpperCase()}
+                      </AvatarFallback>
                     </Avatar>
+                    
                     <div className="flex-1">
                       <div className="bg-gray-50 rounded-lg p-3">
                         <div className="flex items-center justify-between mb-1">
@@ -369,124 +506,61 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
                             ) : (
                               <>
                                 <span className="font-medium text-sm">{getDisplayName(comment?.author)}</span>
-                                {comment?.author?.isAdmin && (
-                                  <>
-                                    {comment?.author?.isFounder ? (
-                                      <Badge variant="secondary" className="text-xs font-semibold border" style={{ background: 'linear-gradient(135deg, #CFD8DD, #D5D7EA, #CFD3D6)', color: '#8FA1B5', borderColor: '#CFD3D6' }}>
-                                        Founder
-                                      </Badge>
-                                    ) : (
-                                      <Badge variant="secondary" className="text-xs font-semibold bg-blue-100 text-blue-800 border-blue-200">
-                                        ���️ Moderator
-                                      </Badge>
-                                    )}
-                                  </>
-                                )}
+                                <RoleBadge
+                                  role={comment?.author?.role}
+                                  isFounder={comment?.author?.isFounder}
+                                  isAdmin={comment?.author?.isAdmin}
+                                />
                                 {comment?.author?.politicalLeaning && (
                                   <Badge variant="secondary" className={\`text-xs \${getPoliticalIdentifierColor(comment.author.politicalLeaning)}\`}>
                                     {getPoliticalIdentifierLabel(comment.author.politicalLeaning)}
                                   </Badge>
                                 )}
-                                {comment?.isFromBluesky && (
-                                  <Badge variant="outline" className="text-xs bg-sky-50 text-sky-700 border-sky-300">
-                                    {comment?.atprotoAuthorHandle ? \`@\${comment.atprotoAuthorHandle} (Bluesky)\` : 'From Bluesky'}
-                                  </Badge>
-                                )}
                               </>
                             )}
                           </div>
-                          {canEditComment && !isEditingThisComment && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button variant="ghost" size="sm" onClick={() => { setEditingCommentId(comment?.id); setEditCommentText(comment?.content ?? '') }} className="h-6 px-2">
-                                  <Edit2 className="h-3 w-3" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent><p>Edit comment</p></TooltipContent>
-                            </Tooltip>
-                          )}
+                          <span className="text-xs text-gray-500">
+                            {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
+                          </span>
                         </div>
-                        {isEditingThisComment ? (
-                          <div className="space-y-2">
-                            <Textarea value={editCommentText} onChange={(e) => setEditCommentText(e.target.value)} className="min-h-[60px] resize-none text-sm" />
-                            <div className="flex justify-end space-x-2">
-                              <Button variant="outline" size="sm" onClick={() => { setEditingCommentId(null); setEditCommentText('') }} disabled={isEditingComment}>Cancel</Button>
-                              <Button size="sm" onClick={() => handleEditComment(comment?.id)} disabled={!editCommentText?.trim() || isEditingComment}>
-                                {isEditingComment ? 'Saving...' : 'Save'}
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            {comment?.quotedText && (
-                              <div className="mb-2">
-                                <QuoteDisplay quotedText={comment.quotedText} quotedAuthor={comment.quotedAuthor} />
-                              </div>
-                            )}
-                            <p className="text-sm text-gray-900">{comment?.content}</p>
-                          </>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-between mt-1">
-                        <span className="text-xs text-gray-500">
-                          {formatDistanceToNow(new Date(comment?.createdAt ?? new Date()))} ago
-                          {comment?.editedAt && <span className="text-xs text-gray-400 ml-2">(edited)</span>}
-                        </span>
-                        <TooltipProvider>
-                          <div className="flex items-center space-x-2">
-                            {reactionTypes?.slice(0, 3)?.map((reaction) => {
-                              const Icon = reaction.icon
-                              return (
-                                <Tooltip key={reaction.type}>
-                                  <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="h-6 px-2"><Icon className="h-3 w-3" /></Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent><p>{reaction.label}</p></TooltipContent>
-                                </Tooltip>
-                              )
-                            })}
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => handleQuoteComment(comment)}>
-                                  <QuoteIcon className="h-3 w-3" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent><p>Quote & Reply</p></TooltipContent>
-                            </Tooltip>
-                          </div>
-                        </TooltipProvider>
+                        <p className="text-sm whitespace-pre-wrap">{comment.content}</p>
                       </div>
                     </div>
                   </div>
-                )
-              })}
-            </div>
+                ))}
 
-            <div className="pt-3 border-t border-gray-100 text-center">
-              <p className="text-xs text-gray-400">
-                Enjoying the conversation?{' '}
-                <a href="/support" className="hover:underline font-medium" style={{ color: '#8FA1B5' }}>
-                  Support BTA →
-                </a>
-              </p>
+                {comments.length === 0 && (
+                  <p className="text-sm text-gray-500 text-center py-4">
+                    No comments yet. Be the first to comment!
+                  </p>
+                )}
+              </div>
             </div>
-          </motion.div>
-        )}
+          )}
+        </div>
       </CardContent>
 
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="sm:max-w-[600px]">
+      <Dialog open={showFlagDialog} onOpenChange={setShowFlagDialog}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Post</DialogTitle>
-            <DialogDescription>Make changes to your post. Remember to maintain civil and respectful discourse.</DialogDescription>
+            <DialogTitle>Flag Post</DialogTitle>
+            <DialogDescription>
+              Please provide a reason for flagging this post. Our moderators will review it.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <Textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} placeholder="What's on your mind?" className="min-h-[150px] resize-none" />
-            <p className="text-xs text-gray-500">Changes will be reviewed by our content moderation system to ensure compliance with community standards.</p>
-          </div>
+          <Textarea
+            placeholder="Reason for flagging..."
+            value={flagReason}
+            onChange={(e) => setFlagReason(e.target.value)}
+            rows={4}
+          />
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowEditDialog(false); setEditContent(currentPost?.content ?? '') }} disabled={isEditing}>Cancel</Button>
-            <Button onClick={handleEdit} disabled={!editContent?.trim() || isEditing}>{isEditing ? 'Saving...' : 'Save Changes'}</Button>
+            <Button variant="outline" onClick={() => setShowFlagDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleFlag} disabled={!flagReason.trim()}>
+              Submit Flag
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
