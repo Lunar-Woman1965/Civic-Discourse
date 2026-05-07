@@ -8,7 +8,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import {
-  import { RoleBadge } from '@/components/role-badge'
   Tooltip,
   TooltipContent,
   TooltipProvider,
