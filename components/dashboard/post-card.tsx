@@ -306,6 +306,25 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
   const canEditPost = post?.authorId === currentUser?.id
 const renderAuthorityBadge = (author: any) => {
   if (!author) return null;
+  const renderAuthorityBadge = (author: any) => {
+  console.log("AUTHORITY BADGE AUTHOR:", {
+    name: author?.name,
+    username: author?.username,
+    role: author?.role,
+    isFounder: author?.isFounder,
+    isAdmin: author?.isAdmin,
+  });
+
+  if (!author) return null;
+
+  return (
+    <RoleBadge
+      role={author?.role}
+      isFounder={author?.isFounder}
+      isAdmin={author?.isAdmin}
+    />
+  );
+};
 
   return (
     <RoleBadge
