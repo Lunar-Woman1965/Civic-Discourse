@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { createFounderNotification } from "@/lib/notifications";
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -126,6 +127,14 @@ export async function POST(request: NextRequest) {
     }
 
     const needsApproval = user?.restrictionLevel === 'approval_required'
+
+  const previousPostCount = await prisma.post.count({
+  where: {
+    authorId: session.user.id,
+  },
+});
+
+const isFirstPost = previousPostCount === 0;
 
     const post = await prisma.post.create({
       data: {
