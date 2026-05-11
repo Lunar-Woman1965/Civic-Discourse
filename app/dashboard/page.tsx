@@ -17,7 +17,11 @@ export default async function DashboardPage({
 
   const userDetails = await prisma.user.findUnique({
     where: { id: user.id },
-    select: { isAdmin: true },
+    select: {
+      isAdmin: true,
+      isFounder: true,
+      role: true,
+    },
   })
 
   const posts = await prisma.post.findMany({
@@ -26,10 +30,7 @@ export default async function DashboardPage({
       ...(userDetails?.isAdmin
         ? {}
         : {
-            OR: [
-              { isApproved: true },
-              { authorId: user.id },
-            ],
+            OR: [{ isApproved: true }, { authorId: user.id }],
           }),
     },
     include: {
@@ -44,6 +45,8 @@ export default async function DashboardPage({
           profileImage: true,
           politicalLeaning: true,
           civilityScore: true,
+          role: true,
+          isFounder: true,
           isAdmin: true,
         },
       },
@@ -59,10 +62,7 @@ export default async function DashboardPage({
           ...(userDetails?.isAdmin
             ? {}
             : {
-                OR: [
-                  { isApproved: true },
-                  { authorId: user.id },
-                ],
+                OR: [{ isApproved: true }, { authorId: user.id }],
               }),
         },
         include: {
@@ -76,6 +76,9 @@ export default async function DashboardPage({
               displayNamePreference: true,
               profileImage: true,
               politicalLeaning: true,
+              civilityScore: true,
+              role: true,
+              isFounder: true,
               isAdmin: true,
             },
           },
