@@ -43,13 +43,102 @@ export default function CreatePostForm({ currentUser, onPostCreated }: CreatePos
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const availableTags = [
-    'environment', 'economy', 'healthcare', 'education', 'immigration',
-    'defense', 'taxes', 'social-issues', 'foreign-policy', 'civil-rights',
-    'technology', 'energy', 'trade', 'infrastructure', 'criminal-justice',
-    'reproductive-health', 'medical-autonomy', 'informed-consent', 
-    'healthcare-access', 'mens-health', 'womens-health', 'elections',
-    '12th-amendment', '22nd-amendment'
-  ]
+  // Core policy
+  'economy',
+  'taxes',
+  'trade',
+  'inflation',
+  'jobs',
+  'labor',
+  'unions',
+  'infrastructure',
+  'technology',
+  'artificial-intelligence',
+  'energy',
+  'climate-change',
+  'environment',
+
+  // Healthcare
+  'healthcare',
+  'healthcare-access',
+  'medical-autonomy',
+  'informed-consent',
+  'public-health',
+  'mental-health',
+  'mens-health',
+  'womens-health',
+  'reproductive-health',
+  'big-pharma',
+
+  // Immigration / borders
+  'immigration',
+  'border-security',
+  'asylum-policy',
+  'citizenship',
+
+  // Government / elections
+  'elections',
+  'election-integrity',
+  'voter-id',
+  'campaign-finance',
+  'term-limits',
+  'constitutional-rights',
+  'states-rights',
+  'supreme-court',
+  'executive-power',
+  'government-overreach',
+  'bureaucracy',
+  'corruption',
+
+  // Constitutional / amendments
+  '1st-amendment',
+  '2nd-amendment',
+  '4th-amendment',
+  '12th-amendment',
+  '14th-amendment',
+  '22nd-amendment',
+
+  // Social / cultural
+  'civil-rights',
+  'social-issues',
+  'identity-politics',
+  'free-speech',
+  'religious-liberty',
+  'parental-rights',
+  'gender-politics',
+  'dei',
+  'cancel-culture',
+  'media-bias',
+  'censorship',
+
+  // Criminal justice / security
+  'criminal-justice',
+  'policing',
+  'crime',
+  'gun-rights',
+  'national-security',
+  'defense',
+  'foreign-policy',
+  'ukraine',
+  'china',
+  'middle-east',
+
+  // Economic systems / ideologies
+  'capitalism',
+  'socialism',
+  'democratic-socialism',
+  'libertarianism',
+  'populism',
+  'globalism',
+  'nationalism',
+
+  // Civic discourse
+  'fact-checking',
+  'misinformation',
+  'journalism',
+  'civic-engagement'
+]
+  
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
