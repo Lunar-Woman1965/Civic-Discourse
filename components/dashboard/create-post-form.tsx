@@ -97,6 +97,7 @@ export default function CreatePostForm({ currentUser, onPostCreated }: CreatePos
   '12th-amendment',
   '14th-amendment',
   '22nd-amendment',
+  '25th-amendment',
 
   // Social / cultural
   'civil-rights',
