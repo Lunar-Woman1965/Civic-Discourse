@@ -318,10 +318,7 @@ const renderAuthorityBadge = (author: any) => {
 
   return (
     <>
-      <span style={{ color: "red", fontWeight: "bold" }}>
-        TEST BADGE
-      </span>
-
+     
       <RoleBadge
         role={author?.role}
         isFounder={author?.isFounder}

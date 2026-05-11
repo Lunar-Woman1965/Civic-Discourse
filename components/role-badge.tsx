@@ -10,9 +10,9 @@ type RoleBadgeProps = {
 
 const FounderIcon = () => (
   <span
-    className="inline-block h-3.5 w-3.5 rounded-full border border-sky-200 bg-[radial-gradient(circle_at_35%_30%,#ffffff_0%,#dff7ff_28%,#9fc7dd_55%,#6f8fa8_100%)] shadow-sm"
-    aria-hidden="true"
-  />
+  className="inline-block h-5 w-5 rounded-full border border-sky-200 bg-[radial-gradient(circle_at_30%_30%,#ffffff,#c4b5fd,#7dd3fc)]"
+  aria-hidden="true"
+/>
 );
 
 export function RoleBadge({ role, isFounder, isAdmin }: RoleBadgeProps) {
