@@ -62,7 +62,8 @@ import { QuoteDisplay } from './quote-display'
 import { MentionTextarea } from './mention-textarea'
 import { Quote as QuoteIcon } from 'lucide-react'
 import BlueskyControls from './bluesky-controls'
-import { RoleBadge } from '../role-badge'
+import { getRoleBadge } from '../badges/getRoleBadge'
+
 
 interface PostCardProps {
   post: any
@@ -305,8 +306,7 @@ export default function PostCard({ post, currentUser, onDelete, isHighlighted }:
   const canDeletePost = post?.authorId === currentUser?.id || Boolean(currentUser?.isAdmin)
   const canEditPost = post?.authorId === currentUser?.id
 const renderAuthorityBadge = (author: any) => {
-  console.log("ROLE BADGE TEST ACTIVE");
-  console.log("AUTHORITY BADGE AUTHOR:", {
+    console.log("AUTHORITY BADGE AUTHOR:", {
     name: author?.name,
     username: author?.username,
     role: author?.role,
@@ -319,11 +319,11 @@ const renderAuthorityBadge = (author: any) => {
   return (
     <>
      
-      <RoleBadge
-        role={author?.role}
+    {getRoleBadge(author?.role)}
+
         isFounder={author?.isFounder}
         isAdmin={author?.isAdmin}
-      />
+      /
     </>
   );
 };

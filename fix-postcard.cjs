@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { RoleBadge } from '@/components/role-badge'
+import { getRoleBadge } from '@/components/badges/getRoleBadge'
+
 import {
   Tooltip,
   TooltipContent,
@@ -506,8 +507,8 @@ export function PostCard({ post, currentUser, showCommunity = true, onPostUpdate
                             ) : (
                               <>
                                 <span className="font-medium text-sm">{getDisplayName(comment?.author)}</span>
-                                <RoleBadge
-                                  role={comment?.author?.role}
+                                import { getRoleBadge } from '@/components/badges/getRoleBadge'
+
                                   isFounder={comment?.author?.isFounder}
                                   isAdmin={comment?.author?.isAdmin}
                                 />
